@@ -467,3 +467,20 @@ logread -f -e matrix
 
 **`No wireless interfaces found`**
 - `iwinfo` returned no results. Ensure `kmod-mac80211` and the appropriate driver are installed, and that Wi-Fi is enabled.
+
+---
+
+## 🛠 For Developers (Build-Step Architecture)
+
+To balance robust developer tooling (like unit testing and linting) with OpenWrt hardware constraints, this project uses a **Macro-Release / Micro-Source** architecture.
+
+The bot logic is maintained within the `src/` directory in isolated logical modules (e.g., `03_wifi.sh`, `05_events.sh`). You should **never edit** `usr/lib/matrix/matrix_bot` directly!
+
+**To build the bot after making changes:**
+1. Edit the relevant modules in `src/`.
+2. Run the build compiler: `./build.sh`
+
+The `build.sh` script will:
+- Concatenate all `src/*.sh` modules into the final release executable `usr/lib/matrix/matrix_bot`.
+- Run formatting using `shfmt`.
+- Run static security analysis using `shellcheck` (with allowances for OpenWrt Ash syntax).
