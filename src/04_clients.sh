@@ -1,15 +1,13 @@
-# ==========================================
-# CLIENT DISPLAY FUNCTIONS
-# ==========================================
-
-# Resolves MAC address to hostname via DHCP leases or UCI static config.
 get_hostname() {
     local MAC="$1"
     local DHCP_DATA="$2"
     local STATIC_CACHE="$3"
 
     MAC=$(printf '%s' "$MAC" | tr -cd '0123456789abcdefABCDEF:')
-    [ -z "$MAC" ] && { printf 'Unknown\n'; return; }
+    [ -z "$MAC" ] && {
+        printf 'Unknown\n'
+        return
+    }
 
     local NAME
     NAME=$(printf '%s' "$DHCP_DATA" | awk -v m="$MAC" 'tolower($0)~tolower(m) {name=$4} END {print name}')
@@ -30,119 +28,243 @@ get_hostname() {
     printf '%s\n' "$NAME"
 }
 
-# Loads static DHCP leases from UCI into a "mac=name ..." string.
-# Pre-loading avoids calling uci inside per-client loops (slow I/O on OpenWrt flash).
 get_static_leases() {
-    uci show dhcp 2>/dev/null | awk -F. \
-        '/host.*mac/ { split($2,a,"="); mac=tolower(a[2]); gsub(/'"'"'/,"",mac) }
-         /host.*name/ { split($2,a,"="); name=a[2]; gsub(/'"'"'/,"",name); if(mac) print mac "=" name }' \
-        | tr '\n' ' '
+    uci show dhcp 2>/dev/null | awk -F= \
+        '/host.*mac=/ { macs[$1] = tolower($2); gsub(/'"'"'/,"",macs[$1]) }
+         /host.*name=/ { names[$1] = $2; gsub(/'"'"'/,"",names[$1]) }
+         END { for (i in macs) { idx=i; sub(/\.mac$/, ".name", idx); if (names[idx]) print macs[i] "=" names[idx] } }' |
+        tr '\n' ' '
 }
 
 get_wifi_clients() {
     printf '🤖 <b>WiFi (LAN) Clients:</b>\n'
 
-    DHCP_DATA=$(cat /tmp/dhcp.leases 2>/dev/null)
-    ARP_DATA=$(cat /proc/net/arp 2>/dev/null)
     DEVICES=$(get_wifi_devices)
-    IPV6_NEIGH=$(ip -6 neigh show 2>/dev/null)
-    STATIC_LEASES=$(get_static_leases)
-
     if [ -z "$DEVICES" ]; then
         printf 'No wireless interfaces found.\n'
         return
     fi
 
+    DHCP_DATA=$(cat /tmp/dhcp.leases 2>/dev/null)
+    ARP_DATA=$(cat /proc/net/arp 2>/dev/null)
+    IPV6_NEIGH=$(ip -6 neigh show 2>/dev/null)
+    STATIC_LEASES=$(get_static_leases)
+
     for iface in $DEVICES; do
         INFO=$(iwinfo "$iface" info)
-
-        SSID=$(printf '%s' "$INFO" | awk -F'"' '/ESSID:/ {print $2}')
-        [ -z "$SSID" ] && SSID="Hidden"
-
-        CHAN=$(printf '%s' "$INFO" | awk -F'Channel: ' '/Channel:/ {print int($2)}')
-        if [ "$CHAN" -gt 14 ] 2>/dev/null; then ICON="🚀 5G"; else ICON="📡 2.4G"; fi
-
         ASSOC_LIST=$(iwinfo "$iface" assoclist)
-        COUNT=$(printf '%s' "$ASSOC_LIST" | grep -c "dBm")
 
-        printf '<br><br><b>%s %s</b> [%s] (%s)<br>\n' "$ICON" "$SSID" "$iface" "$COUNT"
+        # Single awk: parse iwinfo info/assoclist + all lookup sources, emit HTML
+        printf '%s\n---ASSOC---\n%s\n---DHCP---\n%s\n---ARP---\n%s\n---STATIC---\n%s\n---IPV6---\n%s\n' \
+            "$INFO" "$ASSOC_LIST" "$DHCP_DATA" "$ARP_DATA" "$STATIC_LEASES" "$IPV6_NEIGH" |
+            awk -v iface="$iface" '
+            BEGIN { section = "info" }
+            /^---ASSOC---$/ { section = "assoc"; next }
+            /^---DHCP---$/ { section = "dhcp"; next }
+            /^---ARP---$/ { section = "arp"; next }
+            /^---STATIC---$/ { section = "static"; next }
+            /^---IPV6---$/ { section = "ipv6"; next }
 
-        if [ "$COUNT" -eq 0 ]; then
-            printf '<br><i>No clients.</i>\n'
-            continue
-        fi
+            section == "info" && /ESSID:/ {
+                if (match($0, /"[^"]*"/)) ssid = substr($0, RSTART+1, RLENGTH-2)
+            }
+            section == "info" && /Channel:/ {
+                split($0, a, "Channel: "); chan = int(a[2])
+            }
 
-        printf '%s\n' "$ASSOC_LIST" | while read -r line; do
-            case "$line" in *dBm*) ;; *) continue ;; esac
+            section == "assoc" && /dBm/ {
+                assoc_macs[++assoc_count] = tolower($1)
+                assoc_signal[tolower($1)] = $2 " " $3
+            }
 
-            # shellcheck disable=SC2086
-            set -- $line
-            MAC="$1"
-            SIGNAL="$2 $3"
+            section == "dhcp" && NF >= 4 {
+                m = tolower($2); dhcp_ip[m] = $3; dhcp_name[m] = $4
+            }
 
-            IP=$(printf '%s\n' "$DHCP_DATA" | awk -v m="$MAC" 'tolower($0)~tolower(m) {ip=$3} END {print ip}')
-            if [ -z "$IP" ]; then
-                IP=$(printf '%s\n' "$ARP_DATA" | awk -v m="$MAC" '$0~m {print $1; exit}')
-                [ -z "$IP" ] && IP="Unknown"
-            fi
+            section == "arp" && NF >= 4 && $3 ~ /^0x/ && $3 != "0x0" && $4 != "00:00:00:00:00:00" {
+                m = tolower($4)
+                if (!(m in dhcp_ip)) arp_ip[m] = $1
+            }
 
-            NAME=$(printf '%s' "$DHCP_DATA" | awk -v m="$MAC" 'tolower($0)~tolower(m) {name=$4} END {print name}')
+            section == "static" {
+                n = split($0, items, " ")
+                for (i = 1; i <= n; i++) {
+                    if (items[i] == "") continue
+                    split(items[i], kv, "=")
+                    if (kv[1] != "" && kv[2] != "") static_name[kv[1]] = kv[2]
+                }
+            }
 
-            if [ -z "$NAME" ] || [ "$NAME" = "*" ] || [ "$NAME" = "Unknown" ]; then
-                NAME=$(printf '%s' "$STATIC_LEASES" | awk -v m="$MAC" -v RS=" " 'tolower($0)~tolower(m) {split($0,a,"="); print a[2]}')
-            fi
-            [ -z "$NAME" ] && NAME="Unknown"
+            section == "ipv6" && NF >= 5 {
+                m = tolower($5); addr = $1
+                if (addr !~ /^fe80/ && !(m in ipv6g)) ipv6g[m] = addr
+                else if (addr ~ /^fe80/ && !(m in ipv6l)) ipv6l[m] = addr
+            }
 
-            IPV6=$(printf '%s\n' "$IPV6_NEIGH" | awk -v m="$MAC" 'tolower($0)~tolower(m) {if ($1!~/^fe80/) {print $1; f=1; exit} else {ll=$1}} END {if (!f && ll) print ll}')
+            END {
+                if (ssid == "" || ssid == "unknown") ssid = "Hidden"
+                if (chan+0 > 14) icon = "\360\237\232\200 5G"
+                else icon = "\360\237\223\241 2.4G"
 
-            printf '<br>🛜 <b>%s</b>\n' "$NAME"
-            printf '<br>IPv4: <code>%s</code> | %s\n' "$IP" "$SIGNAL"
-            if [ -n "$IPV6" ]; then printf '<br>IPv6: <small><code>%s</code></small>\n' "$IPV6"; fi
-            printf '<br>Mac: <small>%s</small>\n' "$MAC"
-        done
+                printf "<br><br><b>%s %s</b> [%s] (%d)<br>\n", icon, ssid, iface, assoc_count
+
+                if (assoc_count == 0) {
+                    printf "<br><i>No clients.</i>\n"
+                } else {
+                    for (i = 1; i <= assoc_count; i++) {
+                        mac = assoc_macs[i]
+
+                        ip = ""
+                        if (mac in dhcp_ip) ip = dhcp_ip[mac]
+                        if (ip == "" && (mac in arp_ip)) ip = arp_ip[mac]
+                        if (ip == "") ip = "Unknown"
+
+                        name = ""
+                        if (mac in dhcp_name && dhcp_name[mac] != "*" && dhcp_name[mac] != "Unknown")
+                            name = dhcp_name[mac]
+                        if (name == "" && (mac in static_name)) name = static_name[mac]
+                        if (name == "") name = "Unknown"
+
+                        ipv6 = ""
+                        if (mac in ipv6g) ipv6 = ipv6g[mac]
+                        else if (mac in ipv6l) ipv6 = ipv6l[mac]
+
+                        printf "<br>\360\237\233\234 <b>%s</b>\n", name
+                        printf "<br>IPv4: <code>%s</code> | %s\n", ip, assoc_signal[mac]
+                        if (ipv6 != "") printf "<br>IPv6: <small><code>%s</code></small>\n", ipv6
+                        printf "<br>Mac: <small>%s</small>\n", mac
+                    }
+                }
+            }'
     done
 }
 
-# Identifies wired clients by filtering ARP table against wireless MACs.
 get_wired_clients() {
     printf '🤖 <b>Wired (LAN) Clients:</b>\n'
 
-    LAN_IFACE=$(uci -q get network.lan.device)
-    [ -z "$LAN_IFACE" ] && LAN_IFACE="br-lan"
+    BRIDGE_DEVS=$(uci show network 2>/dev/null | awk -F"'" '
+        /\.type=.bridge/ { sec=$0; sub(/\.type=.*/, "", sec); is_bridge[sec]=1 }
+        /\.name=/  { sec=$0; sub(/\.name=.*/, "", sec); dev_name[sec]=$2 }
+        /\.proto=.static/ { sec=$0; sub(/\.proto=.*/, "", sec); is_static[sec]=1 }
+        /\.device=/ { sec=$0; sub(/\.device=.*/, "", sec); iface_dev[sec]=$2 }
+        END {
+            for (s in is_bridge)
+                if (s in dev_name) br[dev_name[s]]=1
+            for (s in is_static)
+                if ((s in iface_dev) && (iface_dev[s] in br))
+                    printf "%s ", iface_dev[s]
+        }')
+
+    # shellcheck disable=SC2086
+    BRIDGE_NETS=$(ip -4 addr show 2>/dev/null | awk -v devs=" $BRIDGE_DEVS " '
+        /inet / && index(devs, " " $NF " ") > 0 { printf "%s=%s ", $2, $NF }')
 
     WIFI_MACS=""
     WIFI_DEVICES=$(get_wifi_devices)
-
     for dev in $WIFI_DEVICES; do
-        MACS=$(iwinfo "$dev" assoclist | awk '{print tolower($1)}' | tr '\n' ' ')
+        MACS=$(iwinfo "$dev" assoclist | awk '/dBm/ {printf "%s ", tolower($1)}')
         WIFI_MACS="${WIFI_MACS}${MACS}"
     done
-    WIFI_MACS=" ${WIFI_MACS} "
 
     DHCP_DATA=$(cat /tmp/dhcp.leases 2>/dev/null)
     STATIC_LEASES=$(get_static_leases)
     IPV6_NEIGH=$(ip -6 neigh show 2>/dev/null)
+    DHCPv6_DATA=$(ubus call dhcp ipv6leases 2>/dev/null | awk \
+        '/"hostname"/ { gsub(/[",]/, ""); h = $2 }
+         /"address"/ { gsub(/[",]/, ""); if (h != "") print h, $2 }')
 
-    # Single awk pass over /proc/net/arp:
-    # - Skip header (NR>1)
-    # - Match only the LAN bridge interface ($6==dev)
-    # - Exclude null entries and incomplete ARP state
-    # - Exclude MACs already seen on wireless (index in space-padded list)
-    VALID_ARP=$(awk -v dev="$LAN_IFACE" -v wifi="$WIFI_MACS" \
-        'NR>1 && $6==dev && $4!="00:00:00:00:00:00" && $3!="0x0" && index(wifi, " "tolower($4)" ")==0 {print $1, $4}' /proc/net/arp)
+    printf '%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n' \
+        "---DHCP---" "$DHCP_DATA" "---STATIC---" "$STATIC_LEASES" \
+        "---IPV6---" "$IPV6_NEIGH" "---DHCPv6---" "$DHCPv6_DATA" |
+        awk -v wifi=" ${WIFI_MACS}" -v nets="$BRIDGE_NETS" '
+        BEGIN {
+            sn = split(nets, nlist, " ")
+            for (i = 1; i <= sn; i++) {
+                split(nlist[i], eq, "=")
+                split(eq[1], p, "/")
+                sub_ip[i] = p[1]
+                sub_bits[i] = p[2] + 0
+                sub_dev[i] = eq[2]
+            }
+        }
 
-    if [ -z "$VALID_ARP" ]; then
-        printf '<br><br><i>No active wired clients found.</i>\n'
-        return
-    fi
+        function ip2num(ip,    a) {
+            split(ip, a, ".")
+            return a[1] * 16777216 + a[2] * 65536 + a[3] * 256 + a[4]
+        }
 
-    printf '%s\n' "$VALID_ARP" | while read -r IP MAC; do
-        NAME=$(get_hostname "$MAC" "$DHCP_DATA" "$STATIC_LEASES")
-        IPV6=$(printf '%s\n' "$IPV6_NEIGH" | awk -v m="$MAC" 'tolower($0)~tolower(m) {if ($1!~/^fe80/) {print $1; f=1; exit} else {ll=$1}} END {if (!f && ll) print ll}')
+        function in_managed(ip, dev,    i, d) {
+            for (i = 1; i <= sn; i++) {
+                if (dev != sub_dev[i]) continue
+                d = 2 ^ (32 - sub_bits[i])
+                if (int(ip2num(ip) / d) == int(ip2num(sub_ip[i]) / d))
+                    return 1
+            }
+            return 0
+        }
 
-        printf '<br><br>🌐 <b>%s</b>\n' "$NAME"
-        printf '<br>IPv4: <code>%s</code>\n' "$IP"
-        if [ -n "$IPV6" ]; then printf '<br>IPv6: <small><code>%s</code></small>\n' "$IPV6"; fi
-        printf '<br>Mac: <small>%s</small>\n' "$MAC"
-    done
+        FNR == NR {
+            if (NF >= 6 && $4 != "00:00:00:00:00:00" && $3 != "0x0") {
+                m = tolower($4)
+                if (index(wifi, " " m " ") == 0 && in_managed($1, $6)) {
+                    arp_macs[++arp_count] = m
+                    arp_ips[arp_count] = $1
+                }
+            }
+            next
+        }
+
+        /^---DHCP---$/ { section = "dhcp"; next }
+        /^---STATIC---$/ { section = "static"; next }
+        /^---IPV6---$/ { section = "ipv6"; next }
+        /^---DHCPv6---$/ { section = "dhcpv6"; next }
+
+        section == "dhcp" && NF >= 4 {
+            m = tolower($2); dhcp_name[m] = $4
+        }
+
+        section == "static" {
+            n = split($0, items, " ")
+            for (i = 1; i <= n; i++) {
+                if (items[i] == "") continue
+                split(items[i], kv, "=")
+                if (kv[1] != "" && kv[2] != "") static_name[kv[1]] = kv[2]
+            }
+        }
+
+        section == "ipv6" && NF >= 5 {
+            m = tolower($5); addr = $1
+            if (addr !~ /^fe80/ && !(m in ipv6g)) ipv6g[m] = addr
+            else if (addr ~ /^fe80/ && !(m in ipv6l)) ipv6l[m] = addr
+        }
+
+        section == "dhcpv6" && NF >= 2 {
+            dhcpv6[tolower($1)] = $2
+        }
+
+        END {
+            if (arp_count == 0) {
+                printf "<br><br><i>No active wired clients found.</i>\n"
+            } else {
+                for (i = 1; i <= arp_count; i++) {
+                    mac = arp_macs[i]
+
+                    name = ""
+                    if (mac in dhcp_name && dhcp_name[mac] != "*" && dhcp_name[mac] != "Unknown")
+                        name = dhcp_name[mac]
+                    if (name == "" && (mac in static_name)) name = static_name[mac]
+                    if (name == "") name = "Unknown"
+
+                    ipv6 = ""
+                    if (tolower(name) in dhcpv6) ipv6 = dhcpv6[tolower(name)]
+                    if (ipv6 == "" && (mac in ipv6g)) ipv6 = ipv6g[mac]
+                    if (ipv6 == "" && (mac in ipv6l)) ipv6 = ipv6l[mac]
+
+                    printf "<br><br>\360\237\214\220 <b>%s</b>\n", name
+                    printf "<br>IPv4: <code>%s</code>\n", arp_ips[i]
+                    if (ipv6 != "") printf "<br>IPv6: <small><code>%s</code></small>\n", ipv6
+                    printf "<br>Mac: <small>%s</small>\n", mac
+                }
+            }
+        }' "${ARP_FILE:-/proc/net/arp}" -
 }

@@ -1,26 +1,49 @@
-# === SANITIZATION ===
-
 sanitize_room_id() {
-    local raw="$1"
-    local clean
-    clean=$(printf '%s' "$raw" | tr -cd 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789.:_!#=-')
-    [ "$raw" != "$clean" ] && debug_log "SECURITY: Room ID sanitized: '$raw' -> '$clean'"
-    printf '%s' "$clean"
+    case "$1" in
+    *[!abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789.:_!#=-]*)
+        local clean
+        clean=$(printf '%s' "$1" | tr -cd 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789.:_!#=-')
+        debug_log "SECURITY: Room ID sanitized: '$1' -> '$clean'"
+        printf '%s' "$clean"
+        ;;
+    *)
+        printf '%s' "$1"
+        ;;
+    esac
 }
 
 sanitize_user_id() {
-    local raw="$1"
-    printf '%s' "$raw" | tr -cd 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789.:_@-'
+    case "$1" in
+    *[!abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789.:_@-]*)
+        printf '%s' "$1" | tr -cd 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789.:_@-'
+        ;;
+    *)
+        printf '%s' "$1"
+        ;;
+    esac
 }
 
-# Percent-encode characters that are valid in a Matrix room ID but unsafe in a URL path segment.
-# '#' (alias rooms) would be treated as a URL fragment; '!' has no special meaning but is encoded
-# for strict RFC 3986 compliance.
+verify_conf_meta() {
+    case "$1" in
+    0:-rw-------* | 0:-r--------*) return 0 ;;
+    esac
+    return 1
+}
+
+html_escape() {
+    case "$1" in
+    *\&* | *\<* | *\>* | *\"*)
+        printf '%s' "$1" | sed 's/&/\&amp;/g; s/</\&lt;/g; s/>/\&gt;/g; s/"/\&quot;/g'
+        ;;
+    *)
+        printf '%s' "$1"
+        ;;
+    esac
+}
+
 urlencode_room() {
     printf '%s' "$1" | sed 's/#/%23/g; s/!/%21/g'
 }
-
-# === SENDING ===
 
 reply() {
     local MSG="$1"
@@ -28,15 +51,12 @@ reply() {
 
     debug_log "Executing sender for $ROOM_ID"
     if [ "$DEBUG_MODE" -eq 1 ]; then
-        "$SENDER_SCRIPT" -d --room-id "$ROOM_ID" "$MSG" </dev/null >> /tmp/matrix_send.log 2>&1 &
+        "$SENDER_SCRIPT" -d --room-id "$ROOM_ID" -- "$MSG" </dev/null >>/tmp/matrix_send.log 2>&1 &
     else
-        "$SENDER_SCRIPT" --room-id "$ROOM_ID" "$MSG" </dev/null &
+        "$SENDER_SCRIPT" --room-id "$ROOM_ID" -- "$MSG" </dev/null &
     fi
 }
 
-# === BACKGROUND EXECUTION ===
-# Executes a command in the background and retries notifying Matrix of the result.
-# Usage: background_exec <label> <room_id> <cmd> [args...]
 background_exec() {
     local service_name="$1"
     local room_id="$2"
@@ -47,7 +67,6 @@ background_exec() {
         "$@"
         ERR_CODE=$?
 
-        # Build the status message once; value cannot change between retry attempts.
         if [ "$ERR_CODE" -eq 0 ]; then
             MSG="✅ <b>$service_name</b>: complete."
         else
@@ -58,7 +77,7 @@ background_exec() {
         MAX_ATTEMPTS=30
         while [ $i -lt $MAX_ATTEMPTS ]; do
             sleep 2
-            "$SENDER_SCRIPT" --room-id "$room_id" "$MSG" >/dev/null 2>&1 && break
+            "$SENDER_SCRIPT" --room-id "$room_id" -- "$MSG" >/dev/null 2>&1 && break
             i=$((i + 1))
         done
 
@@ -68,7 +87,6 @@ background_exec() {
     ) &
 }
 
-# === HELPER FUNCTIONS ===
 get_iface_list() {
     uci show network | awk -F. '/=interface$/ && !/loopback/ {split($2,a,"="); print a[1]}' | sort | awk 'NR>1{printf ", "} {printf $0}'
 }
@@ -83,8 +101,6 @@ get_services_list() {
     printf '%s' "${list%, }"
 }
 
-# === JSON PARSER WRAPPER ===
-# $1=file $2=jq expression $3=jsonfilter expression
 extract_json() {
     if command -v jq >/dev/null 2>&1; then
         jq -r "$2" "$1" 2>/dev/null

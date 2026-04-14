@@ -113,8 +113,7 @@ Create (or reuse) the following rooms in your Matrix client:
 
 | Room | Purpose | Variable |
 |---|---|---|
-| **Command room** | Where you send commands to the bot. Can be E2EE-encrypted. | `MATRIX_ROOM_E2EE_ID` |
-| **Plaintext room** | Optional secondary room without encryption. | `MATRIX_ROOM_ID` |
+| **Command rooms** | Where you send commands to the bot. Can be E2EE-encrypted or plaintext. One or more. | `MATRIX_ROOM_IDS` |
 | **Admin/alert room** | Where the bot sends security alerts (unauthorized access). Does **not** accept commands. | `MATRIX_ROOM_ADMIN` |
 
 Invite the bot account to all rooms. Get room IDs from your client (usually under Room Settings → Advanced) — they look like `!opaque:server.tld`.
@@ -166,9 +165,9 @@ mkdir -p /usr/lib/matrix
 ### 2. Download scripts
 
 ```sh
-curl -sSL "https://raw.githubusercontent.com/underhax/matrix-bot-openwrt/refs/heads/v1.0.0/usr/lib/matrix/matrix_bot" -o /usr/lib/matrix/matrix_bot
-curl -sSL "https://raw.githubusercontent.com/underhax/matrix-bot-openwrt/refs/heads/v1.0.0/usr/lib/matrix/matrix_send" -o /usr/lib/matrix/matrix_send
-curl -sSL "https://raw.githubusercontent.com/underhax/matrix-bot-openwrt/refs/heads/v1.0.0/etc/init.d/matrixbot" -o /etc/init.d/matrixbot
+curl -sSL "https://raw.githubusercontent.com/underhax/matrix-bot-openwrt/refs/tags/v1.0.0/usr/lib/matrix/matrix_bot" -o /usr/lib/matrix/matrix_bot
+curl -sSL "https://raw.githubusercontent.com/underhax/matrix-bot-openwrt/refs/tags/v1.0.0/usr/lib/matrix/matrix_send" -o /usr/lib/matrix/matrix_send
+curl -sSL "https://raw.githubusercontent.com/underhax/matrix-bot-openwrt/refs/tags/v1.0.0/etc/init.d/matrixbot" -o /etc/init.d/matrixbot
 ```
 
 ### 3. Set permissions
@@ -220,11 +219,9 @@ All settings live in `/etc/config/bot.conf`. This file is sourced as a shell scr
 # Base URL of your Matrix homeserver (no trailing slash)
 MATRIX_URL='https://matrix.example.com'
 
-# Room IDs — get from your Matrix client (Room Settings → Advanced)
-# Primary room: E2EE-encrypted, used for sending commands
-MATRIX_ROOM_E2EE_ID='!AbCdEfGhIj:matrix.example.com'
-# Secondary room: plaintext (optional, can be same as above if no E2EE needed)
-MATRIX_ROOM_ID='!KlMnOpQrSt:matrix.example.com'
+# Space-separated list of room IDs where the bot accepts commands.
+# Rooms can be encrypted or plaintext — the bot detects this automatically.
+MATRIX_ROOM_IDS='!AbCdEfGhIj:matrix.example.com !KlMnOpQrSt:matrix.example.com'
 # Admin/alert room: bot sends security warnings here. NOT a command room.
 MATRIX_ROOM_ADMIN='!UvWxYzAbCd:matrix.example.com'
 
@@ -423,7 +420,7 @@ logread -f -e matrix
 ## Security Model
 
 - **Single admin:** only `MATRIX_ADMIN_USER` can issue commands. Any other sender triggers an alert to `MATRIX_ROOM_ADMIN`.
-- **Room whitelist:** events from any room not listed in `MATRIX_ROOM_E2EE_ID` / `MATRIX_ROOM_ID` are silently dropped.
+- **Room whitelist:** events from any room not listed in `MATRIX_ROOM_IDS` are silently dropped.
 - **Service whitelist:** only services in `SVC_WANTED` can be restarted. Service names are validated against `[a-zA-Z0-9_-]` before use.
 - **Input sanitization:** all command arguments are stripped to a safe character set before use. Shell metacharacters are blocked.
 - **SSH host verification:** `StrictHostKeyChecking=yes` with a dedicated `known_hosts` file. Run the host registration step before first use.

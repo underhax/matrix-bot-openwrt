@@ -2,12 +2,11 @@
 
 set -eu
 
-echo "🛠 Building matrix_bot..."
-
 OUT_FILE="usr/lib/matrix/matrix_bot"
 TMP_FILE="${OUT_FILE}.tmp"
 
-# 1. Concatenate all modules in order
+echo "🛠 Building matrix_bot..."
+
 cat src/01_init.sh \
     src/02_helpers.sh \
     src/03_wifi.sh \
@@ -15,25 +14,26 @@ cat src/01_init.sh \
     src/05_events.sh \
     src/06_commands.sh \
     src/07_listeners.sh \
-    src/08_main.sh > "$TMP_FILE"
+    src/08_main.sh >"$TMP_FILE"
 
-# 2. Format with shfmt if available
 if command -v shfmt >/dev/null 2>&1; then
     echo "✨ Formatting with shfmt..."
-    shfmt -w -s -i 2 "$TMP_FILE"
+    shfmt -w -s -i 4 "$TMP_FILE"
 else
     echo "⚠️ shfmt not found, skipping formatting."
 fi
 
-# 3. Lint with shellcheck if available
 if command -v shellcheck >/dev/null 2>&1; then
     echo "🔍 Linting with shellcheck..."
-    shellcheck -s sh -e SC3043,SC1090,SC2153 "$TMP_FILE"
+    if ! shellcheck -s sh -e SC3043,SC1090 "$TMP_FILE"; then
+        echo "❌ Lint failed. Fix errors above."
+        rm -f "$TMP_FILE"
+        exit 1
+    fi
 else
-    echo "⚠️ shellcheck not found, skipping linting."
+    echo "⚠️ shellcheck not found, skipping lint."
 fi
 
-# 4. Finalize
 mv "$TMP_FILE" "$OUT_FILE"
 chmod 700 "$OUT_FILE"
 

@@ -1,6 +1,3 @@
-# === WIFI RADIO ACTION (DRY helper) ===
-# $1=action (up|down|reload), $2=radio UCI name (radio0|radio1),
-# $3=human label (2.4G|5G), $4=room_id
 wifi_radio_action() {
     local action="$1" radio="$2" label="$3" room_id="$4"
     if ! uci -q get "wireless.$radio" >/dev/null 2>&1; then
@@ -10,8 +7,6 @@ wifi_radio_action() {
     reply "🤖⏳ WiFi $label ${action}ing..." "$room_id"
     background_exec "WiFi $label" "$room_id" wifi "$action" "$radio"
 }
-
-# === WIFI INFO ===
 
 get_wifi_devices() {
     iwinfo 2>/dev/null | awk '/ESSID/ {print $1}'
@@ -27,23 +22,26 @@ get_wifi_info() {
         return
     fi
 
-    # Cache UCI wireless config once to prevent slow I/O inside the loop
     UCI_WIRELESS=$(uci show wireless 2>/dev/null)
 
     for iface in $DEVICES; do
         INFO=$(iwinfo "$iface" info)
 
-        # --- SSID ---
-        SSID=$(printf '%s' "$INFO" | awk -F'"' '/ESSID:/ {print $2}')
-        if [ "$SSID" = "unknown" ] || [ -z "$SSID" ]; then SSID="[Hidden]"; fi
-
-        SSID=$(printf '%s' "$SSID" | tr -cd 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 ._-')
-        if [ -z "$SSID" ]; then SSID="[Hidden]"; fi
-
         if [ "$WIFI_DETAILED" != "1" ]; then
-            MODE=$(printf '%s' "$INFO" | awk -F'Mode: ' '/Mode:/ {split($2, a, " "); print a[1]}')
-            CHAN=$(printf '%s' "$INFO" | awk -F'Channel: ' '/Channel:/ {print $2}')
-            RATE=$(printf '%s' "$INFO" | awk -F'Bit Rate: ' '/Bit Rate:/ {print $2}')
+            _parsed=$(printf '%s' "$INFO" | awk '
+                /ESSID:/ { if (match($0, /"[^"]*"/)) ssid = substr($0, RSTART+1, RLENGTH-2) }
+                /Mode:/ { split($0, a, "Mode: "); split(a[2], b, " "); mode = b[1] }
+                /Channel:/ { split($0, a, "Channel: "); chan = a[2] }
+                /Bit Rate:/ { split($0, a, "Bit Rate: "); rate = a[2] }
+                END {
+                    if (ssid == "" || ssid == "unknown") ssid = ""
+                    gsub(/[^a-zA-Z0-9 ._-]/, "", ssid)
+                    if (ssid == "") ssid = "Hidden"
+                    printf "%s|%s|%s|%s", ssid, mode, chan, rate
+                }')
+            IFS='|' read -r SSID MODE CHAN RATE <<EOF
+$_parsed
+EOF
 
             KEY="-"
             ENCRYPTION="-"
@@ -62,29 +60,58 @@ get_wifi_info() {
             OUT="${OUT}Rate: ${RATE}"
 
         else
-            CHIP=$(printf '%s' "$INFO" | awk '/Hardware:/ {if (match($0, /\[.*\]/)) print substr($0, RSTART+1, RLENGTH-2); else {sub(/.*Hardware: /, ""); print}}')
-            BSSID=$(printf '%s' "$INFO" | awk '/Access Point:/ {print $3}')
-            COUNTRY=$(printf '%s' "$INFO" | awk 'match($0, /Country: [A-Z]+/) {print substr($0, RSTART+9, RLENGTH-9)}')
+            _parsed=$(printf '%s' "$INFO" | awk '
+                /ESSID:/ { if (match($0, /"[^"]*"/)) ssid = substr($0, RSTART+1, RLENGTH-2) }
+                /Hardware:/ {
+                    if (match($0, /\[.*\]/)) chip = substr($0, RSTART+1, RLENGTH-2)
+                    else { sub(/.*Hardware: */, ""); chip = $0 }
+                }
+                /Access Point:/ { bssid = $3 }
+                /Country:/ {
+                    if (match($0, /Country: [A-Z]+/)) country = substr($0, RSTART+9, RLENGTH-9)
+                }
+                /Signal:/ {
+                    split($0, a, "Signal: "); split(a[2], b, "  Noise")
+                    signal = b[1]
+                }
+                /Link Quality:/ {
+                    if (signal == "") { split($0, c, "Link Quality: "); lq = c[2] }
+                }
+                /Noise:/ { split($0, a, "Noise: "); noise = a[2] }
+                /Tx-Power:/ {
+                    split($0, a, "Tx-Power: "); split(a[2], b, "  Link")
+                    tx_str = b[1]; tx_val = tx_str
+                    gsub(/[^0-9]/, "", tx_val); tx_val = tx_val + 0
+                    if (tx_val > 0) tx_pwr = tx_val " dBm (" sprintf("%.0f", 10^(tx_val/10)) " mW)"
+                    else tx_pwr = tx_str
+                }
+                /Bit Rate:/ { split($0, a, "Bit Rate: "); rate = a[2] }
+                /HT Mode:/ {
+                    split($0, a, "HT Mode: "); ht_mode = a[2]
+                    width = ht_mode; gsub(/[A-Z]/, "", width)
+                }
+                /Channel:/ {
+                    split($0, a, "Channel: "); chan_num = int(a[2])
+                    split(a[2], d, "  HT"); chan_str = d[1]
+                }
+                /Encryption:/ { split($0, a, "Encryption: "); enc = a[2] }
+                END {
+                    if (ssid == "" || ssid == "unknown") ssid = ""
+                    gsub(/[^a-zA-Z0-9 ._-]/, "", ssid)
+                    if (ssid == "") ssid = "Hidden"
+                    if (signal == "") signal = lq
+                    printf "%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s", \
+                        ssid, chip, bssid, country, signal, noise, \
+                        tx_pwr, rate, ht_mode, chan_num, chan_str, enc, width
+                }')
+            IFS='|' read -r SSID CHIP BSSID COUNTRY SIGNAL NOISE \
+                TX_PWR RATE HT_MODE CHAN_NUM CHAN_STR ENC_LIVE WIDTH <<EOF
+$_parsed
+EOF
+
             [ -z "$COUNTRY" ] && COUNTRY="World"
-
-            SIGNAL=$(printf '%s' "$INFO" | awk '/Signal:/ {split($0, a, "Signal: "); split(a[2], b, "  Noise"); s=b[1]} /Link Quality:/ {split($0, c, ": "); q=c[2]} END {print (s!="" ? s : q)}')
-            NOISE=$(printf '%s' "$INFO" | awk -F'Noise: ' '{print $2}')
             case "$NOISE" in *unknown*) NOISE="0 dBm" ;; esac
-
-            TX_STR=$(printf '%s' "$INFO" | awk '/Tx-Power:/ {split($0,a,"Tx-Power: "); split(a[2],b,"  Link"); print b[1]}')
-            TX_VAL=$(printf '%s' "$TX_STR" | tr -cd '0-9')
-
-            if [ -n "$TX_VAL" ]; then
-                MW=$(awk "BEGIN {printf \"%.0f\", 10^($TX_VAL/10)}")
-                TX_PWR="${TX_VAL} dBm (${MW} mW)"
-            else
-                TX_PWR="$TX_STR"
-            fi
-
-            RATE=$(printf '%s' "$INFO" | awk -F'Bit Rate: ' '{print $2}')
-            HT_MODE=$(printf '%s' "$INFO" | awk -F'HT Mode: ' '/HT Mode:/ {print $2}')
-            CHAN_NUM=$(printf '%s' "$INFO" | awk -F'Channel: ' '/Channel:/ {print int($2)}')
-            CHAN_STR=$(printf '%s' "$INFO" | awk -F'Channel: ' '/Channel:/ {split($2,a,"  HT"); print a[1]}')
+            [ -n "$WIDTH" ] && WIDTH="${WIDTH} MHz" || WIDTH="Legacy"
 
             ICON="📡 2.4G"
             STANDARD="802.11?"
@@ -92,29 +119,23 @@ get_wifi_info() {
             if [ "$CHAN_NUM" -gt 14 ] 2>/dev/null; then
                 ICON="🚀 5G"
                 case "$HT_MODE" in
-                    *VHT*) STANDARD="802.11 ac/n/a" ;;
-                    *HE*)  STANDARD="802.11 ax/ac" ;;
-                    *HT*)  STANDARD="802.11 n/a" ;;
-                    *)     STANDARD="802.11 a" ;;
+                *VHT*) STANDARD="802.11 ac/n/a" ;;
+                *HE*) STANDARD="802.11 ax/ac" ;;
+                *HT*) STANDARD="802.11 n/a" ;;
+                *) STANDARD="802.11 a" ;;
                 esac
             else
-                ICON="📡 2.4G"
                 case "$HT_MODE" in
-                    *HE*) STANDARD="802.11 ax/n/g" ;;
-                    *HT*) STANDARD="802.11 b/g/n" ;;
-                    *)    STANDARD="802.11 b/g" ;;
+                *HE*) STANDARD="802.11 ax/n/g" ;;
+                *HT*) STANDARD="802.11 b/g/n" ;;
+                *) STANDARD="802.11 b/g" ;;
                 esac
             fi
-
-            WIDTH=$(printf '%s' "$HT_MODE" | sed 's/[A-Z]*//g')
-            [ -n "$WIDTH" ] && WIDTH="${WIDTH} MHz" || WIDTH="Legacy"
 
             CLIENT_COUNT=$(iwinfo "$iface" assoclist | grep -c "dBm")
 
             KEY="-"
             OCV="-"
-            ENC_LIVE=$(printf '%s' "$INFO" | awk -F'Encryption: ' '/Encryption:/ {print $2}')
-
             SECTION=$(printf '%s\n' "$UCI_WIRELESS" | awk -F. -v pat=".ssid='$SSID'" 'index($0, pat) {print $1"."$2; exit}')
 
             if [ -n "$SECTION" ]; then
@@ -123,9 +144,11 @@ get_wifi_info() {
                 [ -z "$OCV" ] && OCV="0"
 
                 if [ "$COUNTRY" = "World" ]; then
+                    local WIFI_DEV=""
                     WIFI_DEV=$(uci -q get "${SECTION}.device")
+                    local COUNTRY_UCI=""
                     [ -n "$WIFI_DEV" ] && COUNTRY_UCI=$(uci -q get "wireless.${WIFI_DEV}.country")
-                    [ -n "$COUNTRY_UCI" ] && COUNTRY="${COUNTRY_UCI}"
+                    [ -n "$COUNTRY_UCI" ] && COUNTRY="$COUNTRY_UCI"
                 fi
             fi
 

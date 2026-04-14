@@ -69,3 +69,6 @@ known_hosts
 /tmp/enc_check_*
 /tmp/mhdr_*
 /tmp/matrix_next_batch*
+
+*.md
+!README.md
