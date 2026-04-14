@@ -1,0 +1,33 @@
+name: CI Tests
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  test:
+    name: Lint & Unit Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y shellcheck bats
+
+      - name: Run ShellCheck on Modules
+        run: |
+          shellcheck \
+            --shell=sh \
+            --exclude=SC1091,SC3043,SC1090,SC2153,SC2034 \
+            src/*.sh \
+            usr/lib/matrix/matrix_send \
+            etc/init.d/matrixbot
+
+      - name: Run BATS Unit Tests
+        run: bats tests/

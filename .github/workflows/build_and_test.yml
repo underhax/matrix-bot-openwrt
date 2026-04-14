@@ -12,7 +12,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           fetch-depth: 0
 
@@ -26,7 +26,14 @@ jobs:
           chmod +x ./build.sh
           ./build.sh
 
-      - name: Run Unit Tests
+      - name: Explicit ShellCheck on Output Artifact
+        run: |
+          shellcheck \
+            --shell=sh \
+            --exclude=SC1091,SC3043,SC1090,SC2153,SC2034 \
+            usr/lib/matrix/matrix_bot
+
+      - name: Run Unit Tests (BATS)
         run: bats tests/
 
       - name: Commit compiled artifact

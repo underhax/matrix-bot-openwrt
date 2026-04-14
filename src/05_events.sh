@@ -78,6 +78,7 @@ core_handle_event() {
 
     case "$sender" in
     "$MATRIX_BOT_USER")
+        :
         ;;
 
     "$MATRIX_ADMIN_USER")
