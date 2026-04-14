@@ -1,11 +1,43 @@
 #!/bin/sh
 
-export LC_ALL=C
+PATH="/usr/sbin:/usr/bin:/sbin:/bin"
+export LC_ALL=C PATH
+unset IFS
+set -u
 
-CONF_FILE="/etc/config/bot.conf"
+readonly CONF_FILE="/etc/config/bot.conf"
 
 if [ -f "$CONF_FILE" ]; then
-    . "$CONF_FILE" || { printf '[Error] Failed to source config\n' >&2; exit 1; }
+    # shellcheck disable=SC2012
+    _conf_meta=$(ls -n "$CONF_FILE" 2>/dev/null | awk 'NR==1 {printf "%s:%s", $3, $1}')
+    if [ -z "$_conf_meta" ]; then
+        printf 'FATAL: Cannot read metadata of %s\n' "$CONF_FILE" >&2
+        exit 1
+    fi
+    case "$_conf_meta" in
+    0:-rw-------* | 0:-r--------*) ;;
+    *)
+        printf 'FATAL: %s must be owned by root (uid 0) with mode 600 or 400 (got %s)\n' "$CONF_FILE" "$_conf_meta" >&2
+        exit 1
+        ;;
+    esac
+
+    . "$CONF_FILE" || {
+        printf '[Error] Failed to source config\n' >&2
+        exit 1
+    }
+
+    MATRIX_URL="${MATRIX_URL:-}"
+    MATRIX_URL="${MATRIX_URL%/}"
+    MATRIX_ACCESS_TOKEN="${MATRIX_ACCESS_TOKEN:-}"
+    MATRIX_ROOM_IDS="${MATRIX_ROOM_IDS:-}"
+    SSH_HOST="${SSH_HOST:-}"
+    SSH_PORT="${SSH_PORT:-}"
+    SSH_USER="${SSH_USER:-}"
+    SSH_KEY="${SSH_KEY:-}"
+    readonly MATRIX_URL MATRIX_ACCESS_TOKEN MATRIX_ROOM_IDS \
+        SSH_HOST SSH_PORT SSH_USER SSH_KEY
+
     if [ -z "$MATRIX_URL" ] || [ -z "$MATRIX_ACCESS_TOKEN" ]; then
         printf '[Error] MATRIX_URL or MATRIX_ACCESS_TOKEN missing in config\n' >&2
         exit 1
@@ -15,32 +47,56 @@ else
     exit 1
 fi
 
-# === ARGUMENTS ===
 DEBUG_MODE=0
 MODE="auto"
 RAW_TARGET_ROOM=""
 FORCE_WGET=0
 FORCE_FALLBACK=0
 
-while true; do
+while [ $# -gt 0 ]; do
     case "$1" in
-        -d|--debug) DEBUG_MODE=1; shift ;;
-        --ssh-only) MODE="ssh"; shift ;;
-        --http-only) MODE="http"; shift ;;
-        --no-e2ee) MODE="http"; shift ;;
-        --force-wget) FORCE_WGET=1; shift ;;
-        --force-fallback) FORCE_FALLBACK=1; shift ;;
-        --room-id)
-            if [ -n "$2" ] && [ "${2#-}" = "$2" ]; then
-                RAW_TARGET_ROOM="$2"
-                shift 2
-            else
-                printf '[Error] --room-id requires an argument\n' >&2
-                exit 1
-            fi
-            ;;
-        -*) printf "Unknown option: %s\n" "$1" >&2; exit 1 ;;
-        *) break ;;
+    -d | --debug)
+        DEBUG_MODE=1
+        shift
+        ;;
+    --ssh-only)
+        MODE="ssh"
+        shift
+        ;;
+    --http-only)
+        MODE="http"
+        shift
+        ;;
+    --no-e2ee)
+        MODE="http"
+        shift
+        ;;
+    --force-wget)
+        FORCE_WGET=1
+        shift
+        ;;
+    --force-fallback)
+        FORCE_FALLBACK=1
+        shift
+        ;;
+    --room-id)
+        if [ -n "$2" ] && [ "${2#-}" = "$2" ]; then
+            RAW_TARGET_ROOM="$2"
+            shift 2
+        else
+            printf '[Error] --room-id requires an argument\n' >&2
+            exit 1
+        fi
+        ;;
+    --)
+        shift
+        break
+        ;;
+    -*)
+        printf "Unknown option: %s\n" "$1" >&2
+        exit 1
+        ;;
+    *) break ;;
     esac
 done
 
@@ -54,14 +110,17 @@ fi
 debug_echo() { [ "$DEBUG_MODE" -eq 1 ] && printf "[Debug] %s\n" "$1"; }
 
 if [ -z "$RAW_TARGET_ROOM" ]; then
-    RAW_TARGET_ROOM="$MATRIX_ROOM_E2EE_ID"
+    set -f
+    # shellcheck disable=SC2086
+    set -- $MATRIX_ROOM_IDS
+    set +f
+    RAW_TARGET_ROOM="${1:-}"
     if [ -z "$RAW_TARGET_ROOM" ]; then
-        printf '[Error] No room ID specified and MATRIX_ROOM_E2EE_ID not set in config\n' >&2
+        printf '[Error] No room ID specified and MATRIX_ROOM_IDS is empty in config\n' >&2
         exit 1
     fi
 fi
 
-# Sanitize: allow only characters valid in a Matrix room ID.
 TARGET_ROOM=$(printf '%s' "$RAW_TARGET_ROOM" | tr -cd 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789.:_!#=-')
 
 if [ -z "$TARGET_ROOM" ]; then
@@ -69,11 +128,8 @@ if [ -z "$TARGET_ROOM" ]; then
     exit 1
 fi
 
-# Percent-encode characters that are valid in a room ID but unsafe in a URL path segment.
-# '#' (alias rooms) would be treated as a URL fragment and truncate the path.
 ENCODED_ROOM=$(printf '%s' "$TARGET_ROOM" | sed 's/#/%23/g; s/!/%21/g')
 
-# === 1. TEXT PREPARATION ===
 PLAIN_TEXT=$(printf '%s' "$MSG" | sed 's/<[bB][rR][^>]*>/\n/g; s/<[^>]*>//g')
 
 if [ "$DEBUG_MODE" -eq 1 ]; then
@@ -84,7 +140,6 @@ if [ "$DEBUG_MODE" -eq 1 ]; then
     printf '%s\n' "-----------------------"
 fi
 
-# === 2. JSON FORMATION ===
 if [ "$FORCE_FALLBACK" -eq 0 ] && command -v jq >/dev/null 2>&1; then
     debug_echo "JSON Strategy: JQ (Best Practice)"
     JSON_PAYLOAD=$(jq -n --arg b "$PLAIN_TEXT" --arg f "$MSG" \
@@ -96,13 +151,13 @@ else
         debug_echo "JSON Strategy: Native (awk fallback)"
     fi
 
+    # shellcheck disable=SC2016
     AWK_ESC='{ gsub(/\\/, "\\\\"); gsub(/"/, "\\\""); if (NR > 1) printf "\\n"; printf "%s", $0 }'
     ESC_PLAIN=$(printf '%s' "$PLAIN_TEXT" | awk "$AWK_ESC")
     ESC_HTML=$(printf '%s' "$MSG" | awk "$AWK_ESC")
     JSON_PAYLOAD="{\"msgtype\":\"m.text\",\"body\":\"$ESC_PLAIN\",\"format\":\"org.matrix.custom.html\",\"formatted_body\":\"$ESC_HTML\"}"
 fi
 
-# === 3. SENDING VIA SSH ===
 try_ssh() {
     if [ -z "$SSH_HOST" ] || [ -z "$SSH_KEY" ]; then
         debug_echo "SSH not configured (missing SSH_HOST or SSH_KEY)"
@@ -152,42 +207,41 @@ if [ "$MODE" != "http" ]; then
     debug_echo "SSH failed or skipped, fallback to HTTP..."
 fi
 
-# === 4. SENDING VIA HTTP ===
 debug_echo "HTTP -> Room: $TARGET_ROOM"
-
-MATRIX_URL=${MATRIX_URL%/}
 
 FULL_URL="$MATRIX_URL/_matrix/client/v3/rooms/$ENCODED_ROOM/send/m.room.message"
 
-# Write the Bearer token to a private temp file to avoid exposure in ps output.
-# curl -K reads config directives (including headers) from a file.
 HDR_FILE="/tmp/mhdr_$$.tmp"
-trap 'rm -f "$HDR_FILE"' EXIT INT TERM
+BODY_FILE="/tmp/mbody_$$.tmp"
+WGET_CONF="/tmp/mwgetrc_$$.tmp"
+trap 'rm -f "$HDR_FILE" "$BODY_FILE" "$WGET_CONF"' EXIT INT TERM
 
-( umask 177 && : > "$HDR_FILE" ) || { printf '[Error] Failed to create temp file in /tmp\n' >&2; exit 1; }
-printf 'header = "Authorization: Bearer %s"\n' "$MATRIX_ACCESS_TOKEN" > "$HDR_FILE"
+(umask 177 && set -C && : >"$HDR_FILE" && : >"$BODY_FILE" && : >"$WGET_CONF") || {
+    printf '[Error] Failed to create temp files in /tmp\n' >&2
+    exit 1
+}
+printf 'header = "Authorization: Bearer %s"\n' "$MATRIX_ACCESS_TOKEN" >"$HDR_FILE"
+printf '%s' "$JSON_PAYLOAD" >"$BODY_FILE"
+printf 'header = Authorization: Bearer %s\n' "$MATRIX_ACCESS_TOKEN" >"$WGET_CONF"
 
-if [ "$FORCE_WGET" -eq 0 ] && command -v curl > /dev/null 2>&1; then
+if [ "$FORCE_WGET" -eq 0 ] && command -v curl >/dev/null 2>&1; then
     debug_echo "Transport: CURL"
     curl -s -f -X POST "$FULL_URL" \
         -K "$HDR_FILE" \
         -H "Content-Type: application/json" \
         -d "$JSON_PAYLOAD" \
         --connect-timeout 10 \
-        --max-time 30 > /dev/null
+        --max-time 30 >/dev/null
     exit $?
-elif command -v wget > /dev/null 2>&1; then
+elif command -v wget >/dev/null 2>&1; then
     if [ "$FORCE_WGET" -eq 1 ]; then
         debug_echo "Transport: WGET [FORCED]"
     else
         debug_echo "Transport: WGET"
     fi
-    # wget does not support reading headers from a file; inline the token here.
-    # This is a fallback path — curl is strongly preferred for token hygiene.
-    wget -q -O /dev/null \
-        --header "Authorization: Bearer $MATRIX_ACCESS_TOKEN" \
+    WGETRC="$WGET_CONF" wget -q -O /dev/null \
         --header "Content-Type: application/json" \
-        --post-data "$JSON_PAYLOAD" \
+        --post-file "$BODY_FILE" \
         --timeout=30 \
         "$FULL_URL"
     exit $?
