@@ -19,7 +19,7 @@ cleanup() {
     trap - INT TERM EXIT
     printf '\nStopping Matrix Bot...\n'
 
-    rm -f /tmp/sync_* /tmp/evt_* /tmp/ssh_evt_* \
+    rm -f -- /tmp/sync_* /tmp/evt_* /tmp/ssh_evt_* \
         /tmp/enc_check_* /tmp/mhdr_* /tmp/mbody_* /tmp/mwgetrc_*
 
     if [ -n "$MAIN_PID" ]; then
@@ -43,7 +43,7 @@ cleanup() {
         for pid in $PIDS_SSH; do [ "$pid" != "$$" ] && kill -0 "$pid" 2>/dev/null && kill -KILL "$pid" 2>/dev/null; done
     fi
 
-    PIDS_CURL=$(ps | awk '/curl/ && /_matrix/ && !/awk/ {print $1}')
+    PIDS_CURL=$(ps w | awk '/curl/ && /_matrix/ && !/awk/ {print $1}')
     for pid in $PIDS_CURL; do [ "$pid" != "$$" ] && kill -TERM "$pid" 2>/dev/null; done
     sleep 1
     for pid in $PIDS_CURL; do [ "$pid" != "$$" ] && kill -0 "$pid" 2>/dev/null && kill -KILL "$pid" 2>/dev/null; done

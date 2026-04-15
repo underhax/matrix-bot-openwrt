@@ -214,7 +214,7 @@ FULL_URL="$MATRIX_URL/_matrix/client/v3/rooms/$ENCODED_ROOM/send/m.room.message"
 HDR_FILE="/tmp/mhdr_$$.tmp"
 BODY_FILE="/tmp/mbody_$$.tmp"
 WGET_CONF="/tmp/mwgetrc_$$.tmp"
-trap 'rm -f "$HDR_FILE" "$BODY_FILE" "$WGET_CONF"' EXIT INT TERM
+trap 'rm -f -- "$HDR_FILE" "$BODY_FILE" "$WGET_CONF"' EXIT INT TERM
 
 (umask 177 && set -C && : >"$HDR_FILE" && : >"$BODY_FILE" && : >"$WGET_CONF") || {
     printf '[Error] Failed to create temp files in /tmp\n' >&2
@@ -229,7 +229,7 @@ if [ "$FORCE_WGET" -eq 0 ] && command -v curl >/dev/null 2>&1; then
     curl -s -f -X POST "$FULL_URL" \
         -K "$HDR_FILE" \
         -H "Content-Type: application/json" \
-        -d "$JSON_PAYLOAD" \
+        --data-binary @"$BODY_FILE" \
         --connect-timeout 10 \
         --max-time 30 >/dev/null
     exit $?

@@ -17,22 +17,21 @@ init_encryption_cache() {
 
     printf 'header = "Authorization: Bearer %s"\n' "$MATRIX_ACCESS_TOKEN" >"$hdr_file"
 
+    local enc_room algo attempt errcode
     for room in $targets; do
         room=$(sanitize_room_id "$room")
         [ -z "$room" ] && continue
 
-        local enc_room
         enc_room=$(urlencode_room "$room")
 
-        local algo=""
-        local attempt=0
+        algo=""
+        attempt=0
         while [ "$attempt" -lt 3 ]; do
             : >"$tmp_file"
             curl -s -m 15 -K "$hdr_file" \
                 -o "$tmp_file" \
                 "$MATRIX_URL/_matrix/client/v3/rooms/$enc_room/state/m.room.encryption"
 
-            local errcode
             errcode=$(extract_json "$tmp_file" '.errcode // empty' '@.errcode')
 
             if [ "$errcode" = "M_NOT_FOUND" ]; then
@@ -58,7 +57,7 @@ init_encryption_cache() {
         fi
     done
 
-    rm -f "$tmp_file" "$hdr_file"
+    rm -f -- "$tmp_file" "$hdr_file"
 }
 
 core_handle_event() {

@@ -70,8 +70,16 @@ cmd_sysinfo() {
         mem_data=$(awk '$3=="kB"{$2=int($2/1024);$3="MB"} NR<=5{print $0 "<br>"}' /proc/meminfo)
         res="🤖 <b>Memory Detail:</b><br>$mem_data"
         ;;
+    esac
 
-    "wan_ip")
+    reply "$res" "$room_id"
+}
+
+cmd_wan_ip() {
+    local room_id="$1"
+    reply "🤖⏳ Resolving WAN IP..." "$room_id"
+
+    (
         local iface
         iface=$(uci -q get network.wan.device)
         [ -z "$iface" ] && iface=$(uci -q get network.wan.ifname)
@@ -94,18 +102,29 @@ cmd_sysinfo() {
             (umask 177 && set -C && : >"$ifstatus_tmp")
             ifstatus wan 2>/dev/null >"$ifstatus_tmp"
             ip=$(extract_json "$ifstatus_tmp" '.["ipv4-address"][0].address // empty' '@["ipv4-address"][0].address')
-            rm -f "$ifstatus_tmp"
+            rm -f -- "$ifstatus_tmp"
         fi
 
+        local res
         if [ -n "$ip" ]; then
             res="🤖 <b>WAN IP:</b> <code>$ip</code>"
         else
             res="❌ <b>WAN IP:</b> Could not determine (all sources failed)"
         fi
-        ;;
-    esac
 
-    reply "$res" "$room_id"
+        local i=0
+        local delay=2
+        while [ $i -lt 5 ]; do
+            sleep $delay
+            "$SENDER_SCRIPT" --room-id "$room_id" -- "$res" >/dev/null 2>&1 && break
+            i=$((i + 1))
+            delay=$((delay * 2))
+        done
+
+        if [ $i -eq 5 ]; then
+            logger -t matrix_bot "Failed to send WAN IP result after 5 attempts"
+        fi
+    ) &
 }
 
 cmd_clients() {
@@ -304,6 +323,9 @@ process_command() {
     # shellcheck disable=SC2086
     set -- $BODY
     set +f
+    if [ $# -eq 0 ]; then
+        return
+    fi
     local CMD="$1"
     shift
     local ARGS="$*"
@@ -313,7 +335,8 @@ process_command() {
 
     case "$CMD" in
     "help" | "start") cmd_help "$ROOM_ID" ;;
-    "uptime" | "memory" | "meminfo" | "wan_ip") cmd_sysinfo "$CMD" "$ROOM_ID" ;;
+    "uptime" | "memory" | "meminfo") cmd_sysinfo "$CMD" "$ROOM_ID" ;;
+    "wan_ip") cmd_wan_ip "$ROOM_ID" ;;
     "clients" | *"_clients") cmd_clients "$CMD" "$ROOM_ID" ;;
     "restart" | "reload") cmd_service "$CMD" "$SAFE_ARGS" "$ROOM_ID" ;;
     "ifup" | "ifdown") cmd_iface "$CMD" "$SAFE_ARGS" "$ROOM_ID" ;;

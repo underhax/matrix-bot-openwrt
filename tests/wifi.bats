@@ -32,7 +32,6 @@ setup() {
         fi
     }
 
-    # Dummy implementations for globals/other modules
     debug_log() { return 0; }
 
     source "${BATS_TEST_DIRNAME}/../src/03_wifi.sh"

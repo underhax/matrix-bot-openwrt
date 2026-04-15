@@ -1,5 +1,5 @@
 # Matrix Bot for OpenWrt
-[![ShellCheck Lint](https://github.com/underhax/matrix-bot-openwrt/actions/workflows/shellcheck.yml/badge.svg)](https://github.com/underhax/matrix-bot-openwrt/actions/workflows/shellcheck.yml)
+[![ShellCheck Lint](https://github.com/underhax/matrix-bot-openwrt/actions/workflows/ci.yml/badge.svg)](https://github.com/underhax/matrix-bot-openwrt/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 A lightweight, POSIX shell–based Matrix bot for remote router management over the [Matrix protocol](https://matrix.org/). Runs natively on OpenWrt without any runtime dependencies beyond what the standard image provides.

@@ -32,8 +32,8 @@ verify_conf_meta() {
 
 html_escape() {
     case "$1" in
-    *\&* | *\<* | *\>* | *\"*)
-        printf '%s' "$1" | sed 's/&/\&amp;/g; s/</\&lt;/g; s/>/\&gt;/g; s/"/\&quot;/g'
+    *\&* | *\<* | *\>* | *\"* | *\'*)
+        printf '%s' "$1" | sed 's/\&/\&amp;/g; s/</\&lt;/g; s/>/\&gt;/g; s/"/\&quot;/g; s/'"'"'/\&#39;/g'
         ;;
     *)
         printf '%s' "$1"
@@ -74,11 +74,13 @@ background_exec() {
         fi
 
         i=0
-        MAX_ATTEMPTS=30
+        MAX_ATTEMPTS=5
+        delay=2
         while [ $i -lt $MAX_ATTEMPTS ]; do
-            sleep 2
+            sleep $delay
             "$SENDER_SCRIPT" --room-id "$room_id" -- "$MSG" >/dev/null 2>&1 && break
             i=$((i + 1))
+            delay=$((delay * 2))
         done
 
         if [ $i -eq $MAX_ATTEMPTS ]; then

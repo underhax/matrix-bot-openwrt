@@ -86,33 +86,6 @@ EOF
     source "${BATS_TEST_DIRNAME}/../src/04_clients.sh"
 }
 
-@test "get_hostname: resolves DHCP dynamic leases" {
-    DHCP_DATA=$(cat /tmp/dhcp.leases)
-    STATIC=$(get_static_leases)
-
-    run get_hostname "aa:bb:cc:dd:ee:01" "$DHCP_DATA" "$STATIC"
-    [ "$status" -eq 0 ]
-    [ "$output" = "wifi-phone" ]
-}
-
-@test "get_hostname: resolves UCI static leases if DHCP name absent" {
-    DHCP_DATA=$(cat /tmp/dhcp.leases)
-    STATIC=$(get_static_leases)
-
-    run get_hostname "AA:BB:CC:DD:EE:03" "$DHCP_DATA" "$STATIC"
-    [ "$status" -eq 0 ]
-    [ "$output" = "static-server" ]
-}
-
-@test "get_hostname: resolves unknown correctly if neither matches" {
-    DHCP_DATA=$(cat /tmp/dhcp.leases)
-    STATIC=$(get_static_leases)
-
-    run get_hostname "ff:ff:ff:ff:ff:ff" "$DHCP_DATA" "$STATIC"
-    [ "$status" -eq 0 ]
-    [ "$output" = "Unknown" ]
-}
-
 @test "get_wifi_clients: correctly identifies and formats wireless clients" {
     run get_wifi_clients
     [ "$status" -eq 0 ]

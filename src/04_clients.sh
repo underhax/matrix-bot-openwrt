@@ -1,33 +1,3 @@
-get_hostname() {
-    local MAC="$1"
-    local DHCP_DATA="$2"
-    local STATIC_CACHE="$3"
-
-    MAC=$(printf '%s' "$MAC" | tr -cd '0123456789abcdefABCDEF:')
-    [ -z "$MAC" ] && {
-        printf 'Unknown\n'
-        return
-    }
-
-    local NAME
-    NAME=$(printf '%s' "$DHCP_DATA" | awk -v m="$MAC" 'tolower($0)~tolower(m) {name=$4} END {print name}')
-
-    if [ -z "$NAME" ] || [ "$NAME" = "*" ] || [ "$NAME" = "Unknown" ]; then
-        if [ -n "$STATIC_CACHE" ]; then
-            NAME=$(printf '%s' "$STATIC_CACHE" | awk -v m="$MAC" -v RS=" " 'tolower($0)~tolower(m) {split($0,a,"="); print a[2]}')
-        else
-            local SECTION
-            SECTION=$(uci show dhcp | awk -F. -v m="$MAC" -v q="'" 'BEGIN {pat="mac=" q tolower(m)} index(tolower($0), pat) {print $1"."$2; exit}')
-            [ -n "$SECTION" ] && NAME=$(uci -q get "${SECTION}.name")
-        fi
-    fi
-
-    [ -z "$NAME" ] && NAME="Unknown"
-    [ "$NAME" = "*" ] && NAME="Unknown"
-
-    printf '%s\n' "$NAME"
-}
-
 get_static_leases() {
     uci show dhcp 2>/dev/null | awk -F= \
         '/host.*mac=/ { macs[$1] = tolower($2); gsub(/'"'"'/,"",macs[$1]) }
@@ -39,22 +9,24 @@ get_static_leases() {
 get_wifi_clients() {
     printf '🤖 <b>WiFi (LAN) Clients:</b>\n'
 
+    local DEVICES
     DEVICES=$(get_wifi_devices)
     if [ -z "$DEVICES" ]; then
         printf 'No wireless interfaces found.\n'
         return
     fi
 
+    local DHCP_DATA ARP_DATA IPV6_NEIGH STATIC_LEASES
     DHCP_DATA=$(cat /tmp/dhcp.leases 2>/dev/null)
     ARP_DATA=$(cat /proc/net/arp 2>/dev/null)
     IPV6_NEIGH=$(ip -6 neigh show 2>/dev/null)
     STATIC_LEASES=$(get_static_leases)
 
     for iface in $DEVICES; do
+        local INFO ASSOC_LIST
         INFO=$(iwinfo "$iface" info)
         ASSOC_LIST=$(iwinfo "$iface" assoclist)
 
-        # Single awk: parse iwinfo info/assoclist + all lookup sources, emit HTML
         printf '%s\n---ASSOC---\n%s\n---DHCP---\n%s\n---ARP---\n%s\n---STATIC---\n%s\n---IPV6---\n%s\n' \
             "$INFO" "$ASSOC_LIST" "$DHCP_DATA" "$ARP_DATA" "$STATIC_LEASES" "$IPV6_NEIGH" |
             awk -v iface="$iface" '
@@ -124,7 +96,7 @@ get_wifi_clients() {
                             name = dhcp_name[mac]
                         if (name == "" && (mac in static_name)) name = static_name[mac]
                         if (name == "") name = "Unknown"
-
+                        gsub(/&/, "\\&amp;", name); gsub(/</, "\\&lt;", name); gsub(/>/, "\\&gt;", name); gsub(/"/, "\\&quot;", name)
                         ipv6 = ""
                         if (mac in ipv6g) ipv6 = ipv6g[mac]
                         else if (mac in ipv6l) ipv6 = ipv6l[mac]
@@ -142,6 +114,7 @@ get_wifi_clients() {
 get_wired_clients() {
     printf '🤖 <b>Wired (LAN) Clients:</b>\n'
 
+    local BRIDGE_DEVS
     BRIDGE_DEVS=$(uci show network 2>/dev/null | awk -F"'" '
         /\.type=.bridge/ { sec=$0; sub(/\.type=.*/, "", sec); is_bridge[sec]=1 }
         /\.name=/  { sec=$0; sub(/\.name=.*/, "", sec); dev_name[sec]=$2 }
@@ -156,16 +129,18 @@ get_wired_clients() {
         }')
 
     # shellcheck disable=SC2086
+    local BRIDGE_NETS
     BRIDGE_NETS=$(ip -4 addr show 2>/dev/null | awk -v devs=" $BRIDGE_DEVS " '
         /inet / && index(devs, " " $NF " ") > 0 { printf "%s=%s ", $2, $NF }')
 
-    WIFI_MACS=""
+    local WIFI_MACS="" WIFI_DEVICES MACS
     WIFI_DEVICES=$(get_wifi_devices)
     for dev in $WIFI_DEVICES; do
         MACS=$(iwinfo "$dev" assoclist | awk '/dBm/ {printf "%s ", tolower($1)}')
         WIFI_MACS="${WIFI_MACS}${MACS}"
     done
 
+    local DHCP_DATA STATIC_LEASES IPV6_NEIGH DHCPv6_DATA
     DHCP_DATA=$(cat /tmp/dhcp.leases 2>/dev/null)
     STATIC_LEASES=$(get_static_leases)
     IPV6_NEIGH=$(ip -6 neigh show 2>/dev/null)
@@ -254,6 +229,7 @@ get_wired_clients() {
                         name = dhcp_name[mac]
                     if (name == "" && (mac in static_name)) name = static_name[mac]
                     if (name == "") name = "Unknown"
+                    gsub(/&/, "\\&amp;", name); gsub(/</, "\\&lt;", name); gsub(/>/, "\\&gt;", name); gsub(/"/, "\\&quot;", name)
 
                     ipv6 = ""
                     if (tolower(name) in dhcpv6) ipv6 = dhcpv6[tolower(name)]

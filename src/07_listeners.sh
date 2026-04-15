@@ -39,32 +39,33 @@ listen_e2ee() {
                 SEC=${TS%???}
 
                 if [ -n "$SEC" ] && [ "$SEC" -lt "$START_TIME" ]; then
-                    rm -f "$tmp_line"
+                    rm -f -- "$tmp_line"
                     continue
                 fi
 
                 ROOM_ID=$(extract_json "$tmp_line" '.room_id // empty' '@.room_id')
                 ROOM_ID=$(sanitize_room_id "$ROOM_ID")
                 [ -z "$ROOM_ID" ] && {
-                    rm -f "$tmp_line"
+                    rm -f -- "$tmp_line"
                     continue
                 }
 
                 SENDER=$(extract_json "$tmp_line" '.sender // empty' '@.sender')
                 SENDER=$(sanitize_user_id "$SENDER")
                 [ -z "$SENDER" ] && {
-                    rm -f "$tmp_line"
+                    rm -f -- "$tmp_line"
                     continue
                 }
 
                 BODY=$(extract_json "$tmp_line" '.body // empty' '@.body')
 
                 debug_log "Parsed - ROOM: $ROOM_ID | SENDER: $SENDER | BODY: $BODY"
-                rm -f "$tmp_line"
+                rm -f -- "$tmp_line"
 
                 core_handle_event "$ROOM_ID" "$SENDER" "$BODY"
             done
 
+        jobs >/dev/null 2>&1
         sleep 5
     done
 }
@@ -97,8 +98,9 @@ listen_http() {
         fi
 
         [ -n "$NEXT" ] && (
+            rm -f -- "$BATCH_FILE.tmp"
             set -o noclobber
-            printf '%s\n' "$NEXT" >"$BATCH_FILE.tmp" && mv "$BATCH_FILE.tmp" "$BATCH_FILE"
+            printf '%s\n' "$NEXT" >"$BATCH_FILE.tmp" && mv -- "$BATCH_FILE.tmp" "$BATCH_FILE"
         ) 2>/dev/null
 
         local enc_next
@@ -112,6 +114,13 @@ listen_http() {
 
         if [ ! -s "$sync_tmp" ]; then
             sleep 5
+            continue
+        fi
+
+        _sync_err=$(extract_json "$sync_tmp" '.errcode // empty' '@.errcode')
+        if [ -n "$_sync_err" ]; then
+            debug_log "API error in sync response: $_sync_err, backing off"
+            sleep 10
             continue
         fi
 
@@ -164,7 +173,6 @@ listen_http() {
                 i=$((i + 1))
             done
         done
+        jobs >/dev/null 2>&1
     done
-
-    rm -f "$hdr_file"
 }

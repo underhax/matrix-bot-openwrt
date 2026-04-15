@@ -15,6 +15,7 @@ get_wifi_devices() {
 get_wifi_info() {
     local OUT="🤖 <b>WiFi Status:</b>"
 
+    local DEVICES
     DEVICES=$(get_wifi_devices)
 
     if [ -z "$DEVICES" ]; then
@@ -22,9 +23,11 @@ get_wifi_info() {
         return
     fi
 
+    local UCI_WIRELESS
     UCI_WIRELESS=$(uci show wireless 2>/dev/null)
 
     for iface in $DEVICES; do
+        local INFO
         INFO=$(iwinfo "$iface" info)
 
         if [ "$WIFI_DETAILED" != "1" ]; then
@@ -55,7 +58,10 @@ EOF
             OUT="${OUT}<br><br><b>${iface}</b><br>"
             OUT="${OUT}SSID: <code>${SSID}</code> (${MODE})<br>"
             OUT="${OUT}Crypt: ${ENCRYPTION}<br>"
-            if [ -n "$KEY" ]; then OUT="${OUT}Key: <code>${KEY}</code><br>"; fi
+            if [ -n "$KEY" ]; then
+                KEY=$(html_escape "$KEY")
+                OUT="${OUT}Key: <code>${KEY}</code><br>"
+            fi
             OUT="${OUT}Channel: ${CHAN}<br>"
             OUT="${OUT}Rate: ${RATE}"
 
@@ -160,6 +166,7 @@ EOF
             OUT="${OUT}Crypt: ${ENC_LIVE}<br>"
 
             if [ -n "$KEY" ]; then
+                KEY=$(html_escape "$KEY")
                 OUT="${OUT}Key: <code>${KEY}</code><br>"
             fi
 
