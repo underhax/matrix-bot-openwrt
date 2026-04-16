@@ -34,7 +34,7 @@ setup() {
 
     debug_log() { return 0; }
 
-    source "${BATS_TEST_DIRNAME}/../src/03_wifi.sh"
+    source "${BATS_TEST_DIRNAME}/../src/common/03_wifi.sh"
 }
 
 @test "wifi_radio_action: successfully calls background_exec for known radio" {

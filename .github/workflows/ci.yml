@@ -25,9 +25,10 @@ jobs:
           shellcheck \
             --shell=sh \
             --exclude=SC1091,SC3043,SC1090,SC2153,SC2034 \
-            src/*.sh \
-            usr/lib/matrix/matrix_send \
-            etc/init.d/matrixbot
+            src/**/*.sh \
+            usr/lib/matrix/matrix_send* \
+            etc/init.d/matrixbot*
+
 
       - name: Run BATS Unit Tests
         run: bats tests/

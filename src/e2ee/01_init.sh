@@ -1,15 +1,8 @@
-#!/bin/sh
-
-PATH="/usr/sbin:/usr/bin:/sbin:/bin"
-export LC_ALL=C PATH
-unset IFS
-set -u
-
+readonly BUILD_TYPE="e2ee"
 readonly CONF_FILE="/etc/config/bot.conf"
 readonly SENDER_SCRIPT="/usr/lib/matrix/matrix_send"
 
 DEBUG_MODE=0
-RUN_MODE="auto"
 
 readonly DEFAULT_SERVICES="dnsmasq firewall network odhcpd cron uhttpd"
 
@@ -17,10 +10,10 @@ MAIN_PID=""
 
 cleanup() {
     trap - INT TERM EXIT
-    printf '\nStopping Matrix Bot...\n'
+    printf '\nStopping Matrix Bot (E2EE)...\n'
 
-    rm -f -- /tmp/sync_* /tmp/evt_* /tmp/ssh_evt_* \
-        /tmp/enc_check_* /tmp/mhdr_* /tmp/mbody_* /tmp/mwgetrc_*
+    rm -f -- /tmp/ssh_evt_* /tmp/enc_check_* \
+        /tmp/mhdr_* /tmp/mbody_* /tmp/mwgetrc_*
 
     if [ -n "$MAIN_PID" ]; then
         kill -TERM "$MAIN_PID" 2>/dev/null
@@ -43,11 +36,6 @@ cleanup() {
         for pid in $PIDS_SSH; do [ "$pid" != "$$" ] && kill -0 "$pid" 2>/dev/null && kill -KILL "$pid" 2>/dev/null; done
     fi
 
-    PIDS_CURL=$(ps w | awk '/curl/ && /_matrix/ && !/awk/ {print $1}')
-    for pid in $PIDS_CURL; do [ "$pid" != "$$" ] && kill -TERM "$pid" 2>/dev/null; done
-    sleep 1
-    for pid in $PIDS_CURL; do [ "$pid" != "$$" ] && kill -0 "$pid" 2>/dev/null && kill -KILL "$pid" 2>/dev/null; done
-
     exit 0
 }
 trap cleanup INT TERM EXIT
@@ -58,19 +46,11 @@ while [ $# -gt 0 ]; do
         DEBUG_MODE=1
         printf "DEBUG ON\n"
         ;;
-    --no-e2ee)
-        RUN_MODE="http"
-        printf "MODE: HTTP ONLY\n"
-        ;;
-    --e2ee)
-        RUN_MODE="e2ee"
-        printf "MODE: SSH ONLY\n"
-        ;;
     esac
     shift
 done
 
-readonly DEBUG_MODE RUN_MODE
+readonly DEBUG_MODE
 
 debug_log() { [ "$DEBUG_MODE" -eq 1 ] && printf "[DEBUG] %s\n" "$1"; }
 
@@ -81,13 +61,10 @@ if [ -f "$CONF_FILE" ]; then
         printf 'FATAL: Cannot read metadata of %s\n' "$CONF_FILE" >&2
         exit 1
     fi
-    case "$_conf_meta" in
-    0:-rw-------* | 0:-r--------*) ;;
-    *)
+    if ! verify_conf_meta "$_conf_meta"; then
         printf 'FATAL: %s must be owned by root (uid 0) with mode 600 or 400 (got %s)\n' "$CONF_FILE" "$_conf_meta" >&2
         exit 1
-        ;;
-    esac
+    fi
 
     . "$CONF_FILE" || {
         printf "Error: Failed to source config file\n" >&2

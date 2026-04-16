@@ -3,14 +3,14 @@
 setup() {
     debug_log() { return 0; }
 
-    source "${BATS_TEST_DIRNAME}/../src/02_helpers.sh"
+    source "${BATS_TEST_DIRNAME}/../src/common/02_helpers.sh"
 
     reply() {
         REPLY_MSG="$1"
         REPLY_ROOM="$2"
     }
 
-    source "${BATS_TEST_DIRNAME}/../src/06_commands.sh"
+    source "${BATS_TEST_DIRNAME}/../src/common/06_commands.sh"
 
     cmd_help() { REPLY_MSG="H: room=$1"; }
     cmd_sysinfo() { REPLY_MSG="S: cmd=$1 room=$2"; }

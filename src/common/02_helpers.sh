@@ -23,14 +23,8 @@ sanitize_user_id() {
     esac
 }
 
-verify_conf_meta() {
-    case "$1" in
-    0:-rw-------* | 0:-r--------*) return 0 ;;
-    esac
-    return 1
-}
-
 html_escape() {
+
     case "$1" in
     *\&* | *\<* | *\>* | *\"* | *\'*)
         printf '%s' "$1" | sed 's/\&/\&amp;/g; s/</\&lt;/g; s/>/\&gt;/g; s/"/\&quot;/g; s/'"'"'/\&#39;/g'

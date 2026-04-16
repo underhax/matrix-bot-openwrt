@@ -3,11 +3,11 @@
 START=99
 USE_PROCD=1
 
-SCRIPT="/usr/lib/matrix/matrix_bot"
+SCRIPT="/usr/lib/matrix/matrix_bot_http"
 
 start_service() {
     if [ ! -f "$SCRIPT" ]; then
-        logger -t matrixbot "ERROR: $SCRIPT not found, refusing to start"
+        logger -t matrixbot_http "ERROR: $SCRIPT not found, refusing to start"
         return 1
     fi
 
@@ -23,5 +23,5 @@ start_service() {
 }
 
 stop_service() {
-    logger -t matrixbot "Stopping matrixbot"
+    logger -t matrixbot_http "Stopping matrixbot_http"
 }

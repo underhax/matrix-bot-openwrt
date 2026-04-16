@@ -81,11 +81,11 @@ core_handle_event() {
         ;;
 
     "$MATRIX_ADMIN_USER")
-        case "$RUN_MODE:$is_room_encrypted" in
+        case "$BUILD_TYPE:$is_room_encrypted" in
         "http:1")
             if [ -z "$body" ]; then
                 debug_log "Encrypted message from Admin in HTTP mode. Room: $room_id"
-                reply "⛔ In HTTP/NO-E2EE mode, I cannot process messages in this encrypted room." "$room_id"
+                reply "⛔ In HTTP mode, I cannot process messages in this encrypted room." "$room_id"
                 return
             fi
             ;;
@@ -108,10 +108,9 @@ core_handle_event() {
         local alert_dst="$MATRIX_ROOM_ADMIN"
 
         local display_payload="${body:-[Empty/Unknown]}"
-        if [ -z "$body" ] && [ "$RUN_MODE" = "http" ] && [ "$is_room_encrypted" -eq 1 ]; then
+        if [ -z "$body" ] && [ "$BUILD_TYPE" = "http" ] && [ "$is_room_encrypted" -eq 1 ]; then
             display_payload="[Encrypted Message - Content Hidden]"
         fi
-
         display_payload=$(html_escape "$display_payload")
         local safe_sender
         safe_sender=$(html_escape "$sender")

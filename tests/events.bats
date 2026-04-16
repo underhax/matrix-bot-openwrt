@@ -3,7 +3,7 @@
 setup() {
     debug_log() { return 0; }
 
-    source "${BATS_TEST_DIRNAME}/../src/02_helpers.sh"
+    source "${BATS_TEST_DIRNAME}/../src/common/02_helpers.sh"
 
     reply() {
         REPLY_MSG="$1"
@@ -20,14 +20,14 @@ setup() {
     MATRIX_ROOM_IDS="!FnJELSyCNjDcZigcCJ:matrix.tld !0xUqYq4IIruJEFcCVhkzezUfk5m2InboKUkXe3ZTmPs"
     MATRIX_ROOM_ADMIN="!admin_room:matrix.tld"
     MATRIX_ADMIN_USER="@admin:matrix.tld"
-    RUN_MODE="http"
+    BUILD_TYPE="http"
 
     REPLY_MSG=""
     REPLY_ROOM=""
     LAST_CMD_SENDER=""
     LAST_CMD_BODY=""
 
-    source "${BATS_TEST_DIRNAME}/../src/05_events.sh"
+    source "${BATS_TEST_DIRNAME}/../src/common/05_events.sh"
 }
 
 @test "core_handle_event: ignores messages from unknown/unconfigured rooms" {
@@ -46,7 +46,7 @@ setup() {
 
 @test "core_handle_event: processes valid command from normal user in valid room" {
     ENCRYPTED_CACHE=" !0xUqYq4IIruJEFcCVhkzezUfk5m2InboKUkXe3ZTmPs "
-    RUN_MODE="http"
+    BUILD_TYPE="http"
 
     core_handle_event "!FnJELSyCNjDcZigcCJ:matrix.tld" "@admin:matrix.tld" "uptime"
 
@@ -56,7 +56,7 @@ setup() {
 }
 
 @test "core_handle_event: warns admin when strict E2EE is required globally but room is unencrypted" {
-    RUN_MODE="e2ee"
+    BUILD_TYPE="e2ee"
     ENCRYPTED_CACHE=" !0xUqYq4IIruJEFcCVhkzezUfk5m2InboKUkXe3ZTmPs "
 
     core_handle_event "!FnJELSyCNjDcZigcCJ:matrix.tld" "@admin:matrix.tld" "uptime"
@@ -68,7 +68,7 @@ setup() {
 }
 
 @test "core_handle_event: processes commands when E2EE is required and room is encrypted" {
-    RUN_MODE="e2ee"
+    BUILD_TYPE="e2ee"
     ENCRYPTED_CACHE=" !0xUqYq4IIruJEFcCVhkzezUfk5m2InboKUkXe3ZTmPs "
 
     core_handle_event "!0xUqYq4IIruJEFcCVhkzezUfk5m2InboKUkXe3ZTmPs" "@admin:matrix.tld" "uptime"
@@ -80,7 +80,7 @@ setup() {
 
 @test "core_handle_event: security alert HTML-escapes XSS payload from unauthorized user" {
     ENCRYPTED_CACHE=""
-    RUN_MODE="http"
+    BUILD_TYPE="http"
 
     core_handle_event "!FnJELSyCNjDcZigcCJ:matrix.tld" "@evil:matrix.tld" '<img src=x onerror=alert(1)>'
 

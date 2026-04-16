@@ -83,7 +83,7 @@ EOF
         fi
     }
 
-    source "${BATS_TEST_DIRNAME}/../src/04_clients.sh"
+    source "${BATS_TEST_DIRNAME}/../src/common/04_clients.sh"
 }
 
 @test "get_wifi_clients: correctly identifies and formats wireless clients" {

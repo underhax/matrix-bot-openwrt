@@ -5,7 +5,8 @@ setup() {
         return 0
     }
 
-    source "${BATS_TEST_DIRNAME}/../src/02_helpers.sh"
+    source "${BATS_TEST_DIRNAME}/../src/common/01_verify_function.sh"
+    source "${BATS_TEST_DIRNAME}/../src/common/02_helpers.sh"
 }
 
 @test "sanitize_room_id: allows valid room names" {

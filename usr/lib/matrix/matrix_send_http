@@ -33,12 +33,7 @@ if [ -f "$CONF_FILE" ]; then
     MATRIX_URL="${MATRIX_URL%/}"
     MATRIX_ACCESS_TOKEN="${MATRIX_ACCESS_TOKEN:-}"
     MATRIX_ROOM_IDS="${MATRIX_ROOM_IDS:-}"
-    SSH_HOST="${SSH_HOST:-}"
-    SSH_PORT="${SSH_PORT:-}"
-    SSH_USER="${SSH_USER:-}"
-    SSH_KEY="${SSH_KEY:-}"
-    readonly MATRIX_URL MATRIX_ACCESS_TOKEN MATRIX_ROOM_IDS \
-        SSH_HOST SSH_PORT SSH_USER SSH_KEY
+    readonly MATRIX_URL MATRIX_ACCESS_TOKEN MATRIX_ROOM_IDS
     if [ -z "$MATRIX_URL" ] || [ -z "$MATRIX_ACCESS_TOKEN" ]; then
         printf '[Error] MATRIX_URL or MATRIX_ACCESS_TOKEN missing in config\n' >&2
         exit 1
@@ -48,7 +43,6 @@ else
     exit 1
 fi
 DEBUG_MODE=0
-MODE="auto"
 RAW_TARGET_ROOM=""
 FORCE_WGET=0
 FORCE_AWK_FALLBACK=0
@@ -57,14 +51,6 @@ while [ $# -gt 0 ]; do
     case "$1" in
     -d | --debug)
         DEBUG_MODE=1
-        shift
-        ;;
-    --ssh-only)
-        MODE="ssh"
-        shift
-        ;;
-    --http-only)
-        MODE="http"
         shift
         ;;
     --force-wget)
@@ -148,51 +134,6 @@ for CURRENT_ROOM in $ROOMS_TO_TRY; do
     [ -z "$TARGET_ROOM" ] && continue
 
     ROOM_ID_ESC=$(printf '%s' "$TARGET_ROOM" | sed 's/#/%23/g; s/!/%21/g')
-    try_ssh() {
-        if [ -z "$SSH_HOST" ] || [ -z "$SSH_KEY" ]; then
-            debug_echo "SSH not configured (missing SSH_HOST or SSH_KEY)"
-            return 1
-        fi
-
-        if [ -z "$SSH_USER" ] || [ -z "$SSH_PORT" ]; then
-            debug_echo "SSH config incomplete (missing SSH_USER or SSH_PORT)"
-            return 1
-        fi
-
-        if [ ! -r "$SSH_KEY" ]; then
-            debug_echo "SSH key not found or not readable: $SSH_KEY"
-            [ "${MODE:-}" = "ssh" ] && printf '[Error] SSH key not accessible: %s\n' "$SSH_KEY" >&2
-            return 1
-        fi
-
-        debug_echo "Attempting SSH -> Room: $TARGET_ROOM"
-
-        printf "%s" "$MSG" | ssh -i "$SSH_KEY" -p "$SSH_PORT" \
-            -o StrictHostKeyChecking=yes \
-            -o UserKnownHostsFile=/etc/matrix_bot_known_hosts \
-            -o LogLevel=ERROR \
-            -o BatchMode=yes \
-            -o ConnectTimeout=10 \
-            -o ServerAliveInterval=5 \
-            -o ServerAliveCountMax=2 \
-            -T \
-            "$SSH_USER@$SSH_HOST" matrix-commander-rs --room "'$TARGET_ROOM'" --html --message - >/dev/null 2>&1
-
-        return $?
-    }
-
-    if [ "${MODE:-}" != "http" ]; then
-        if try_ssh; then
-            debug_echo "Transport: SSH (Success for $TARGET_ROOM)"
-            exit 0
-        fi
-
-        if [ "${MODE:-}" = "ssh" ]; then
-            debug_echo "SSH failed for $TARGET_ROOM, skipping HTTP as per mode"
-            continue
-        fi
-        debug_echo "SSH failed for $TARGET_ROOM, trying fallback to HTTP..."
-    fi
     debug_echo "HTTP -> Room: $TARGET_ROOM"
 
     FULL_URL="$MATRIX_URL/_matrix/client/v3/rooms/$ROOM_ID_ESC/send/m.room.message"

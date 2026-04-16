@@ -53,7 +53,7 @@ EOF
     REPLY_MSG=""
     BG_EXEC_CMD=""
 
-    source "${BATS_TEST_DIRNAME}/../src/06_commands.sh"
+    source "${BATS_TEST_DIRNAME}/../src/common/06_commands.sh"
 
     awk() {
         for _a; do
