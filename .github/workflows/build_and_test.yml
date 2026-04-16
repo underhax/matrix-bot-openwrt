@@ -26,16 +26,6 @@ jobs:
           chmod +x ./build.sh
           ./build.sh
 
-      - name: Explicit ShellCheck on Output Artifacts
-        run: |
-          shellcheck \
-            --shell=sh \
-            --exclude=SC1091,SC3043,SC1090,SC2153,SC2034 \
-            usr/lib/matrix/matrix_bot \
-            usr/lib/matrix/matrix_bot_http \
-            usr/lib/matrix/matrix_send \
-            usr/lib/matrix/matrix_send_http
-
       - name: Run Unit Tests (BATS)
         run: bats tests/
 
@@ -50,4 +40,3 @@ jobs:
             git commit -m "chore: auto-build all artifacts"
             git push
           fi
-

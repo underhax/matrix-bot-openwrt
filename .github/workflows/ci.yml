@@ -18,17 +18,12 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y shellcheck bats
+          sudo apt-get install -y shellcheck bats shfmt
 
-      - name: Run ShellCheck on Modules
+      - name: Build Artifacts
         run: |
-          shellcheck \
-            --shell=sh \
-            --exclude=SC1091,SC3043,SC1090,SC2153,SC2034 \
-            src/**/*.sh \
-            usr/lib/matrix/matrix_send* \
-            etc/init.d/matrixbot*
-
+          chmod +x ./build.sh
+          ./build.sh
 
       - name: Run BATS Unit Tests
         run: bats tests/
