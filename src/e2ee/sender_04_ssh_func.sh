@@ -30,16 +30,3 @@ try_ssh() {
 
     return $?
 }
-
-if [ "${MODE:-}" != "http" ]; then
-    if try_ssh; then
-        debug_echo "Transport: SSH (Success for $TARGET_ROOM)"
-        exit 0
-    fi
-
-    if [ "${MODE:-}" = "ssh" ]; then
-        debug_echo "SSH failed for $TARGET_ROOM, skipping HTTP as per mode"
-        continue
-    fi
-    debug_echo "SSH failed for $TARGET_ROOM, trying fallback to HTTP..."
-fi

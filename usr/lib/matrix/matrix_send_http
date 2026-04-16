@@ -12,34 +12,30 @@ verify_conf_meta() {
 }
 readonly CONF_FILE="/etc/config/bot.conf"
 
-if [ -f "$CONF_FILE" ]; then
-    # shellcheck disable=SC2012
-    _conf_meta=$(ls -n "$CONF_FILE" 2>/dev/null | awk 'NR==1 {printf "%s:%s", $3, $1}')
-    if [ -z "$_conf_meta" ]; then
-        printf 'FATAL: Cannot read metadata of %s\n' "$CONF_FILE" >&2
-        exit 1
-    fi
-    if ! verify_conf_meta "$_conf_meta"; then
-        printf 'FATAL: %s must be owned by root (uid 0) with mode 600 or 400 (got %s)\n' "$CONF_FILE" "$_conf_meta" >&2
-        exit 1
-    fi
-
-    . "$CONF_FILE" || {
-        printf '[Error] Failed to source config\n' >&2
-        exit 1
-    }
-
-    MATRIX_URL="${MATRIX_URL:-}"
-    MATRIX_URL="${MATRIX_URL%/}"
-    MATRIX_ACCESS_TOKEN="${MATRIX_ACCESS_TOKEN:-}"
-    MATRIX_ROOM_IDS="${MATRIX_ROOM_IDS:-}"
-    readonly MATRIX_URL MATRIX_ACCESS_TOKEN MATRIX_ROOM_IDS
-    if [ -z "$MATRIX_URL" ] || [ -z "$MATRIX_ACCESS_TOKEN" ]; then
-        printf '[Error] MATRIX_URL or MATRIX_ACCESS_TOKEN missing in config\n' >&2
-        exit 1
-    fi
-else
+if [ ! -f "$CONF_FILE" ]; then
     printf "[Error] Config file not found: %s\n" "$CONF_FILE" >&2
+    exit 1
+fi
+
+# shellcheck disable=SC2012
+_conf_meta=$(ls -n "$CONF_FILE" 2>/dev/null | awk 'NR==1 {printf "%s:%s", $3, $1}')
+
+if [ -z "$_conf_meta" ] || ! verify_conf_meta "$_conf_meta"; then
+    printf 'FATAL: %s must be owned by root (uid 0) with mode 600 or 400 (got %s)\n' "$CONF_FILE" "${_conf_meta:-unknown}" >&2
+    exit 1
+fi
+
+. "$CONF_FILE" || {
+    printf '[Error] Failed to source config\n' >&2
+    exit 1
+}
+MATRIX_URL="${MATRIX_URL:-}"
+MATRIX_URL="${MATRIX_URL%/}"
+MATRIX_ACCESS_TOKEN="${MATRIX_ACCESS_TOKEN:-}"
+MATRIX_ROOM_IDS="${MATRIX_ROOM_IDS:-}"
+readonly MATRIX_URL MATRIX_ACCESS_TOKEN MATRIX_ROOM_IDS
+if [ -z "${MATRIX_URL:-}" ] || [ -z "${MATRIX_ACCESS_TOKEN:-}" ]; then
+    printf '[Error] MATRIX_URL or MATRIX_ACCESS_TOKEN missing in config\n' >&2
     exit 1
 fi
 DEBUG_MODE=0
@@ -133,9 +129,25 @@ for CURRENT_ROOM in $ROOMS_TO_TRY; do
     TARGET_ROOM=$(printf '%s' "$CURRENT_ROOM" | tr -cd 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789.:_!#=-')
     [ -z "$TARGET_ROOM" ] && continue
 
-    ROOM_ID_ESC=$(printf '%s' "$TARGET_ROOM" | sed 's/#/%23/g; s/!/%21/g')
-    debug_echo "HTTP -> Room: $TARGET_ROOM"
+    # Transport A: SSH/E2EE (if function is defined in current build)
+    if command -v try_ssh >/dev/null 2>&1; then
+        if [ "${MODE:-}" != "http" ]; then
+            if try_ssh; then
+                debug_echo "Transport: SSH (Success for $TARGET_ROOM)"
+                exit 0
+            fi
 
+            if [ "${MODE:-}" = "ssh" ]; then
+                debug_echo "SSH failed for $TARGET_ROOM, skipping HTTP as per mode"
+                continue
+            fi
+            debug_echo "SSH failed for $TARGET_ROOM, trying fallback to HTTP..."
+        fi
+    fi
+
+    # Transport B: HTTP
+    debug_echo "HTTP -> Room: $TARGET_ROOM"
+    ROOM_ID_ESC=$(printf '%s' "$TARGET_ROOM" | sed 's/#/%23/g; s/!/%21/g')
     FULL_URL="$MATRIX_URL/_matrix/client/v3/rooms/$ROOM_ID_ESC/send/m.room.message"
 
     HDR_FILE="/tmp/mhdr_$$.tmp"
