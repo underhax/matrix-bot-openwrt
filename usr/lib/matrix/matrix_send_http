@@ -109,7 +109,16 @@ else
     fi
 
     # shellcheck disable=SC2016
-    AWK_ESC='{ gsub(/\\/, "\\\\"); gsub(/"/, "\\\""); if (NR > 1) printf "\\n"; printf "%s", $0 }'
+    AWK_ESC='{
+        gsub(/\\/, "\\\\\\\\")
+        gsub(/"/, "\\\\\"")
+        gsub(/\010/, "\\\\b")
+        gsub(/\014/, "\\\\f")
+        gsub(/\015/, "\\\\r")
+        gsub(/\011/, "\\\\t")
+        if (NR > 1) printf "\\n"
+        printf "%s", $0
+    }'
     ESC_PLAIN=$(printf '%s' "$PLAIN_TEXT" | awk "$AWK_ESC")
     ESC_HTML=$(printf '%s' "$MSG" | awk "$AWK_ESC")
     JSON_PAYLOAD="{\"msgtype\":\"m.text\",\"body\":\"$ESC_PLAIN\",\"format\":\"org.matrix.custom.html\",\"formatted_body\":\"$ESC_HTML\"}"
@@ -129,7 +138,6 @@ for CURRENT_ROOM in $ROOMS_TO_TRY; do
     TARGET_ROOM=$(printf '%s' "$CURRENT_ROOM" | tr -cd 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789.:_!#=-')
     [ -z "$TARGET_ROOM" ] && continue
 
-    # Transport A: SSH/E2EE (if function is defined in current build)
     if command -v try_ssh >/dev/null 2>&1; then
         if [ "${MODE:-}" != "http" ]; then
             if try_ssh; then
@@ -145,7 +153,6 @@ for CURRENT_ROOM in $ROOMS_TO_TRY; do
         fi
     fi
 
-    # Transport B: HTTP
     debug_echo "HTTP -> Room: $TARGET_ROOM"
     ROOM_ID_ESC=$(printf '%s' "$TARGET_ROOM" | sed 's/#/%23/g; s/!/%21/g')
     FULL_URL="$MATRIX_URL/_matrix/client/v3/rooms/$ROOM_ID_ESC/send/m.room.message"

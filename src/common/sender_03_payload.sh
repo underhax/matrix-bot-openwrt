@@ -20,7 +20,16 @@ else
     fi
 
     # shellcheck disable=SC2016
-    AWK_ESC='{ gsub(/\\/, "\\\\"); gsub(/"/, "\\\""); if (NR > 1) printf "\\n"; printf "%s", $0 }'
+    AWK_ESC='{
+        gsub(/\\/, "\\\\\\\\")
+        gsub(/"/, "\\\\\"")
+        gsub(/\010/, "\\\\b")
+        gsub(/\014/, "\\\\f")
+        gsub(/\015/, "\\\\r")
+        gsub(/\011/, "\\\\t")
+        if (NR > 1) printf "\\n"
+        printf "%s", $0
+    }'
     ESC_PLAIN=$(printf '%s' "$PLAIN_TEXT" | awk "$AWK_ESC")
     ESC_HTML=$(printf '%s' "$MSG" | awk "$AWK_ESC")
     JSON_PAYLOAD="{\"msgtype\":\"m.text\",\"body\":\"$ESC_PLAIN\",\"format\":\"org.matrix.custom.html\",\"formatted_body\":\"$ESC_HTML\"}"
