@@ -45,9 +45,9 @@ reply() {
 
     debug_log "Executing sender for $ROOM_ID"
     if [ "$DEBUG_MODE" -eq 1 ]; then
-        ( "$SENDER_SCRIPT" -d --room-id "$ROOM_ID" -- "$MSG" </dev/null >>/tmp/matrix_send.log 2>&1 & ) &
+        ("$SENDER_SCRIPT" -d --room-id "$ROOM_ID" -- "$MSG" </dev/null >>/tmp/matrix_send.log 2>&1 &) &
     else
-        ( "$SENDER_SCRIPT" --room-id "$ROOM_ID" -- "$MSG" </dev/null & ) &
+        ("$SENDER_SCRIPT" --room-id "$ROOM_ID" -- "$MSG" </dev/null &) &
     fi
     wait $!
 }
@@ -81,7 +81,7 @@ background_exec() {
         if [ $i -eq $MAX_ATTEMPTS ]; then
             logger -t matrix_bot "Failed to send notification after $MAX_ATTEMPTS attempts: $service_name"
         fi
-    ) & ) &
+    ) &) &
     wait $!
 }
 

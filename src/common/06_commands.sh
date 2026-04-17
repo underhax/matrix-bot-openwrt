@@ -124,7 +124,7 @@ cmd_wan_ip() {
         if [ $i -eq 5 ]; then
             logger -t matrix_bot "Failed to send WAN IP result after 5 attempts"
         fi
-    ) & ) &
+    ) &) &
     wait $!
 }
 
@@ -261,11 +261,14 @@ cmd_wol() {
     "wol")
         if [ -n "$args" ]; then
             mac_target="$args"
-            if ! awk -v m="$mac_target" 'BEGIN { exit !(m ~ /^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$/) }'; then
+            case "$mac_target" in
+            [0-9a-fA-F][0-9a-fA-F]:[0-9a-fA-F][0-9a-fA-F]:[0-9a-fA-F][0-9a-fA-F]:[0-9a-fA-F][0-9a-fA-F]:[0-9a-fA-F][0-9a-fA-F]:[0-9a-fA-F][0-9a-fA-F]) ;;
+            *)
                 res="⛔ <b>Error:</b> Invalid MAC address format. Expected: AA:BB:CC:DD:EE:FF"
                 reply "$res" "$room_id"
                 return
-            fi
+                ;;
+            esac
         else
             res="🤖 Usage: wol AA:BB:CC:DD:EE:FF<br>You can see available MAC addresses using the command: <code>clients</code>"
             reply "$res" "$room_id"
@@ -275,11 +278,14 @@ cmd_wol() {
     "wol_pc")
         if [ -n "$MAC_PC" ]; then
             mac_target="$MAC_PC"
-            if ! awk -v m="$mac_target" 'BEGIN { exit !(m ~ /^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$/) }'; then
+            case "$mac_target" in
+            [0-9a-fA-F][0-9a-fA-F]:[0-9a-fA-F][0-9a-fA-F]:[0-9a-fA-F][0-9a-fA-F]:[0-9a-fA-F][0-9a-fA-F]:[0-9a-fA-F][0-9a-fA-F]:[0-9a-fA-F][0-9a-fA-F]) ;;
+            *)
                 res="❌ <b>Error:</b> Invalid MAC_PC format in config."
                 reply "$res" "$room_id"
                 return
-            fi
+                ;;
+            esac
         else
             res="🤖 Error: MAC_PC variable is not set in bot.conf"
             reply "$res" "$room_id"
