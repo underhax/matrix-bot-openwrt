@@ -2,20 +2,12 @@ readonly BUILD_TYPE="e2ee"
 readonly SENDER_SCRIPT="/usr/lib/matrix/matrix_send"
 readonly DEFAULT_SERVICES="dnsmasq firewall network odhcpd cron uhttpd"
 
-MAIN_PID=""
-
 cleanup() {
     trap - INT TERM EXIT
     printf '\nStopping Matrix Bot (E2EE)...\n'
 
     rm -f -- "/tmp/ssh_evt_${$}"* "/tmp/enc_check_${$}"* \
         "/tmp/mhdr_${$}"* "/tmp/mbody_${$}"* "/tmp/mwgetrc_${$}"*
-
-    if [ -n "$MAIN_PID" ]; then
-        kill -TERM "$MAIN_PID" 2>/dev/null
-        sleep 1
-        kill -0 "$MAIN_PID" 2>/dev/null && kill -KILL "$MAIN_PID" 2>/dev/null
-    fi
 
     for p in $(jobs -p); do
         kill -TERM "$p" 2>/dev/null

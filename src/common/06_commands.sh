@@ -79,7 +79,7 @@ cmd_wan_ip() {
     local room_id="$1"
     reply "🤖⏳ Resolving WAN IP..." "$room_id"
 
-    (
+    ( (
         local iface
         iface=$(uci -q get network.wan.device)
         [ -z "$iface" ] && iface=$(uci -q get network.wan.ifname)
@@ -124,7 +124,8 @@ cmd_wan_ip() {
         if [ $i -eq 5 ]; then
             logger -t matrix_bot "Failed to send WAN IP result after 5 attempts"
         fi
-    ) &
+    ) & ) &
+    wait $!
 }
 
 cmd_clients() {
