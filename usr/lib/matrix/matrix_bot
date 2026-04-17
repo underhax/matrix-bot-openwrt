@@ -85,10 +85,11 @@ SSH_KEY="${SSH_KEY:-}"
 MAC_PC="${MAC_PC:-}"
 SVC_WANTED="${SVC_WANTED:-}"
 WIFI_DETAILED="${WIFI_DETAILED:-0}"
+WIFI_SHOW_KEY="${WIFI_SHOW_KEY:-0}"
 readonly MATRIX_URL MATRIX_ACCESS_TOKEN MATRIX_BOT_USER \
     MATRIX_ROOM_IDS MATRIX_ROOM_ADMIN MATRIX_ADMIN_USER \
     SSH_HOST SSH_PORT SSH_USER SSH_KEY \
-    MAC_PC SVC_WANTED WIFI_DETAILED
+    MAC_PC SVC_WANTED WIFI_DETAILED WIFI_SHOW_KEY
 if [ -z "$MATRIX_URL" ] || [ -z "$MATRIX_ACCESS_TOKEN" ] || [ -z "$MATRIX_BOT_USER" ]; then
     printf "Error: Required Matrix configuration missing\n" >&2
     exit 1
@@ -261,7 +262,10 @@ EOF
             OUT="${OUT}<br><br><b>${iface}</b><br>"
             OUT="${OUT}SSID: <code>${SSID}</code> (${MODE})<br>"
             OUT="${OUT}Crypt: ${ENCRYPTION}<br>"
-            if [ -n "$KEY" ]; then
+            if [ -n "$KEY" ] && [ "$KEY" != "-" ]; then
+                if [ "$WIFI_SHOW_KEY" != "1" ]; then
+                    KEY="********"
+                fi
                 KEY=$(html_escape "$KEY")
                 OUT="${OUT}Key: <code>${KEY}</code><br>"
             fi
@@ -368,7 +372,10 @@ EOF
             OUT="${OUT}Mode: ${STANDARD} (${WIDTH})<br>"
             OUT="${OUT}Crypt: ${ENC_LIVE}<br>"
 
-            if [ -n "$KEY" ]; then
+            if [ -n "$KEY" ] && [ "$KEY" != "-" ]; then
+                if [ "$WIFI_SHOW_KEY" != "1" ]; then
+                    KEY="********"
+                fi
                 KEY=$(html_escape "$KEY")
                 OUT="${OUT}Key: <code>${KEY}</code><br>"
             fi

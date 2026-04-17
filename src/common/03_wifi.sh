@@ -58,7 +58,10 @@ EOF
             OUT="${OUT}<br><br><b>${iface}</b><br>"
             OUT="${OUT}SSID: <code>${SSID}</code> (${MODE})<br>"
             OUT="${OUT}Crypt: ${ENCRYPTION}<br>"
-            if [ -n "$KEY" ]; then
+            if [ -n "$KEY" ] && [ "$KEY" != "-" ]; then
+                if [ "$WIFI_SHOW_KEY" != "1" ]; then
+                    KEY="********"
+                fi
                 KEY=$(html_escape "$KEY")
                 OUT="${OUT}Key: <code>${KEY}</code><br>"
             fi
@@ -165,7 +168,10 @@ EOF
             OUT="${OUT}Mode: ${STANDARD} (${WIDTH})<br>"
             OUT="${OUT}Crypt: ${ENC_LIVE}<br>"
 
-            if [ -n "$KEY" ]; then
+            if [ -n "$KEY" ] && [ "$KEY" != "-" ]; then
+                if [ "$WIFI_SHOW_KEY" != "1" ]; then
+                    KEY="********"
+                fi
                 KEY=$(html_escape "$KEY")
                 OUT="${OUT}Key: <code>${KEY}</code><br>"
             fi

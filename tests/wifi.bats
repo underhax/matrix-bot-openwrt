@@ -32,7 +32,7 @@ setup() {
         fi
     }
 
-    debug_log() { return 0; }
+    html_escape() { echo "$1"; }
 
     source "${BATS_TEST_DIRNAME}/../src/common/03_wifi.sh"
 }
@@ -66,4 +66,46 @@ phy1" ]
     echo "$output" | grep -q "SSID: <code>Hidden</code>"
     echo "$output" | grep -q "Channel: 11 (2.4 GHz)"
     echo "$output" | grep -q "Channel: 36 (5 GHz)"
+}
+
+@test "get_wifi_info: masks wifi keys by default" {
+    uci() {
+        if [ "$1" = "show" ] && [ "$2" = "wireless" ]; then
+            echo "wireless.default_radio0=wifi-iface"
+            echo "wireless.default_radio0.ssid='Test_SSID'"
+        elif [ "$1" = "-q" ] && [ "$2" = "get" ]; then
+            case "$3" in
+            wireless.default_radio0.key) echo "password123" ;;
+            wireless.default_radio0.encryption) echo "psk2" ;;
+            esac
+        fi
+    }
+    WIFI_SHOW_KEY=0
+    run get_wifi_info
+    [ "$status" -eq 0 ]
+    echo "$output" | grep -q "Key: <code>\*\*\*\*\*\*\*\*</code>" || {
+        echo "Failed output: $output"
+        return 1
+    }
+}
+
+@test "get_wifi_info: shows full key when WIFI_SHOW_KEY=1" {
+    uci() {
+        if [ "$1" = "show" ] && [ "$2" = "wireless" ]; then
+            echo "wireless.default_radio0=wifi-iface"
+            echo "wireless.default_radio0.ssid='Test_SSID'"
+        elif [ "$1" = "-q" ] && [ "$2" = "get" ]; then
+            case "$3" in
+            wireless.default_radio0.key) echo "password123" ;;
+            wireless.default_radio0.encryption) echo "psk2" ;;
+            esac
+        fi
+    }
+    WIFI_SHOW_KEY=1
+    run get_wifi_info
+    [ "$status" -eq 0 ]
+    echo "$output" | grep -q "Key: <code>password123</code>" || {
+        echo "Failed output: $output"
+        return 1
+    }
 }

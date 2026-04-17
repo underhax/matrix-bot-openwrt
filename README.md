@@ -284,7 +284,11 @@ SSH_KEY='/root/.ssh/router-matrix'
 
 # Set to 1 for detailed Wi-Fi info (hardware, BSSID, signal, TX power, etc.)
 # Set to 0 or leave empty for simple mode (SSID, channel, rate, key)
-WIFI_DETAILED='0'
+WIFI_DETAILED=0
+
+# Set to 1 to reveal Wi-Fi passwords in plaintext in chat outputs.
+# Set to 0 or leave empty to mask passwords (e.g. ********) for security.
+WIFI_SHOW_KEY=0
 
 # =====================
 # Service control
