@@ -5,14 +5,20 @@ setup() {
         return 0
     }
 
-    source "${BATS_TEST_DIRNAME}/../src/common/01_verify_function.sh"
+    source "${BATS_TEST_DIRNAME}/../src/common/01_common.sh"
     source "${BATS_TEST_DIRNAME}/../src/common/02_helpers.sh"
 }
 
-@test "sanitize_room_id: allows valid room names" {
+@test "sanitize_room_id: allows valid room names (v11)" {
     run sanitize_room_id "!QxWxRxTx:matrix.org"
     [ "$status" -eq 0 ]
     [ "$output" = "!QxWxRxTx:matrix.org" ]
+}
+
+@test "sanitize_room_id: allows valid room names (v12)" {
+    run sanitize_room_id "!xdLLcxSu07_4HDexdtl5tbpRN_Bbh9cXy-bZRnf7npA"
+    [ "$status" -eq 0 ]
+    [ "$output" = "!xdLLcxSu07_4HDexdtl5tbpRN_Bbh9cXy-bZRnf7npA" ]
 }
 
 @test "sanitize_room_id: strips dangerous bash/shell metacharacters" {
@@ -27,6 +33,12 @@ setup() {
     [ "$output" = "reboot!room" ]
 }
 
+@test "sanitize_room_id: removes hash symbol (#)" {
+    run sanitize_room_id "!test#room:domain"
+    [ "$status" -eq 0 ]
+    [ "$output" = "!testroom:domain" ]
+}
+
 @test "sanitize_user_id: preserves @ prefix and complex domain names" {
     run sanitize_user_id "@matrix_user-bot.1:matrix.org"
     [ "$status" -eq 0 ]
@@ -39,10 +51,10 @@ setup() {
     [ "$output" = "@userOR11reboot:server" ]
 }
 
-@test "urlencode_room: correctly percent-encodes '!' and '#'" {
-    run urlencode_room "!test#room:domain"
+@test "urlencode_room: correctly percent-encodes '!' and ':'" {
+    run urlencode_room "!test:domain"
     [ "$status" -eq 0 ]
-    [ "$output" = "%21test%23room:domain" ]
+    [ "$output" = "%21test%3Adomain" ]
 }
 
 @test "urlencode_room: leaves standard characters untouched" {

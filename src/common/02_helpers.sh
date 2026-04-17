@@ -1,17 +1,3 @@
-sanitize_room_id() {
-    case "$1" in
-    *[!abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789.:_!#=-]*)
-        local clean
-        clean=$(printf '%s' "$1" | tr -cd 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789.:_!#=-')
-        debug_log "SECURITY: Room ID sanitized: '$1' -> '$clean'"
-        printf '%s' "$clean"
-        ;;
-    *)
-        printf '%s' "$1"
-        ;;
-    esac
-}
-
 sanitize_user_id() {
     case "$1" in
     *[!abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789.:_@-]*)
@@ -33,10 +19,6 @@ html_escape() {
         printf '%s' "$1"
         ;;
     esac
-}
-
-urlencode_room() {
-    printf '%s' "$1" | sed 's/#/%23/g; s/!/%21/g'
 }
 
 reply() {

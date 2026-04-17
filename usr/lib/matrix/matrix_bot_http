@@ -10,6 +10,24 @@ verify_conf_meta() {
     esac
     return 1
 }
+
+sanitize_room_id() {
+    case "$1" in
+    *[!abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789.:_!-]*)
+        local clean
+        clean=$(printf '%s' "$1" | tr -cd 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789.:_!-')
+        debug_log "SECURITY: Room ID sanitized: '$1' -> '$clean'"
+        printf '%s' "$clean"
+        ;;
+    *)
+        printf '%s' "$1"
+        ;;
+    esac
+}
+
+urlencode_room() {
+    printf '%s' "$1" | sed 's/!/%21/g; s/:/%3A/g'
+}
 readonly BUILD_TYPE="http"
 readonly SENDER_SCRIPT="/usr/lib/matrix/matrix_send_http"
 readonly DEFAULT_SERVICES="dnsmasq firewall network odhcpd cron uhttpd"
@@ -88,20 +106,6 @@ if [ -z "$MATRIX_URL" ] || [ -z "$MATRIX_ACCESS_TOKEN" ] || [ -z "$MATRIX_BOT_US
     printf "Error: Required Matrix configuration missing\n" >&2
     exit 1
 fi
-sanitize_room_id() {
-    case "$1" in
-    *[!abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789.:_!#=-]*)
-        local clean
-        clean=$(printf '%s' "$1" | tr -cd 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789.:_!#=-')
-        debug_log "SECURITY: Room ID sanitized: '$1' -> '$clean'"
-        printf '%s' "$clean"
-        ;;
-    *)
-        printf '%s' "$1"
-        ;;
-    esac
-}
-
 sanitize_user_id() {
     case "$1" in
     *[!abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789.:_@-]*)
@@ -123,10 +127,6 @@ html_escape() {
         printf '%s' "$1"
         ;;
     esac
-}
-
-urlencode_room() {
-    printf '%s' "$1" | sed 's/#/%23/g; s/!/%21/g'
 }
 
 reply() {

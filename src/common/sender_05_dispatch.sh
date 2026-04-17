@@ -10,7 +10,7 @@ if [ -z "$ROOMS_TO_TRY" ]; then
 fi
 
 for CURRENT_ROOM in $ROOMS_TO_TRY; do
-    TARGET_ROOM=$(printf '%s' "$CURRENT_ROOM" | tr -cd 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789.:_!#=-')
+    TARGET_ROOM=$(sanitize_room_id "$CURRENT_ROOM")
     [ -z "$TARGET_ROOM" ] && continue
 
     if command -v try_ssh >/dev/null 2>&1; then
@@ -29,7 +29,7 @@ for CURRENT_ROOM in $ROOMS_TO_TRY; do
     fi
 
     debug_echo "HTTP -> Room: $TARGET_ROOM"
-    ROOM_ID_ESC=$(printf '%s' "$TARGET_ROOM" | sed 's/#/%23/g; s/!/%21/g')
+    ROOM_ID_ESC=$(urlencode_room "$TARGET_ROOM")
     FULL_URL="$MATRIX_URL/_matrix/client/v3/rooms/$ROOM_ID_ESC/send/m.room.message"
 
     HDR_FILE="/tmp/mhdr_$$.tmp"
