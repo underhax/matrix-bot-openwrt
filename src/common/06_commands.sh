@@ -296,15 +296,25 @@ cmd_wol() {
 
     if [ -n "$mac_target" ]; then
         if command -v etherwake >/dev/null; then
-            local iface
-            iface=$(uci -q get network.lan.device)
-            [ -z "$iface" ] && iface="br-lan"
+            local iface_list="${WOL_INTERFACES:-}"
+            if [ -z "$iface_list" ]; then
+                iface_list=$(uci -q get network.lan.device)
+                [ -z "$iface_list" ] && iface_list="br-lan"
+            fi
 
-            local out
-            if out=$(etherwake -i "$iface" "$mac_target" 2>&1); then
+            local out="" err="" success=0
+            for iface in $iface_list; do
+                if out=$(etherwake -i "$iface" "$mac_target" 2>&1); then
+                    success=1
+                else
+                    err="${err}[$iface] $out "
+                fi
+            done
+
+            if [ "$success" -eq 1 ]; then
                 [ "$cmd" = "wol_pc" ] && res="🤖 Waking PC (<code>$mac_target</code>)..." || res="🤖 Magic packet sent to <code>$mac_target</code>"
             else
-                res="❌ <b>Error:</b> Failed to send WOL.<br>Output: $out"
+                res="❌ <b>Error:</b> Failed to send WOL.<br>Output: $err"
             fi
         else
             res="❌ <b>Error:</b> <code>etherwake</code> is not installed.<br>Run: <code>apk update && apk add etherwake</code>"

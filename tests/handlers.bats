@@ -45,6 +45,7 @@ EOF
     }
 
     etherwake() {
+        printf "%s|" "$2" >>"${BATS_TEST_TMPDIR}/etherwake_calls"
         [ "$1" = "-i" ] && [ "$3" = "AA:BB:CC:DD:EE:01" ] && return 0
         echo "etherwake: Invalid MAC"
         return 1
@@ -52,6 +53,7 @@ EOF
 
     REPLY_MSG=""
     BG_EXEC_CMD=""
+    rm -f "${BATS_TEST_TMPDIR}/etherwake_calls"
 
     source "${BATS_TEST_DIRNAME}/../src/common/06_commands.sh"
 
@@ -94,6 +96,22 @@ EOF
 @test "cmd_wol: sends magic packet for valid MAC" {
     cmd_wol "wol" "AA:BB:CC:DD:EE:01" "!room"
     [ "$REPLY_MSG" = "🤖 Magic packet sent to <code>AA:BB:CC:DD:EE:01</code>" ]
+}
+
+@test "cmd_wol: loops through multiple WOL_INTERFACES" {
+    WOL_INTERFACES="lan1 lan2 vlanX"
+    cmd_wol "wol" "AA:BB:CC:DD:EE:01" "!room"
+    run cat "${BATS_TEST_TMPDIR}/etherwake_calls"
+    [ "$output" = "lan1|lan2|vlanX|" ]
+    [ "$REPLY_MSG" = "🤖 Magic packet sent to <code>AA:BB:CC:DD:EE:01</code>" ]
+}
+
+@test "cmd_wol: aggregates errors if all WOL_INTERFACES fail" {
+    WOL_INTERFACES="failed1 failed2"
+    cmd_wol "wol" "FF:EE:DD:CC:BB:AA" "!room"
+    run cat "${BATS_TEST_TMPDIR}/etherwake_calls"
+    [ "$output" = "failed1|failed2|" ]
+    echo "$REPLY_MSG" | grep -q "\[failed1\].*\[failed2\]"
 }
 
 @test "cmd_wol: rejects malformed MAC address" {
