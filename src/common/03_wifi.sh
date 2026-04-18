@@ -38,7 +38,7 @@ get_wifi_info() {
                 /Bit Rate:/ { split($0, a, "Bit Rate: "); rate = a[2] }
                 END {
                     if (ssid == "" || ssid == "unknown") ssid = ""
-                    gsub(/[^a-zA-Z0-9 ._-]/, "", ssid)
+                    gsub(/\|/, "_", ssid)
                     if (ssid == "") ssid = "Hidden"
                     printf "%s|%s|%s|%s", ssid, mode, chan, rate
                 }')
@@ -56,7 +56,7 @@ EOF
             fi
 
             OUT="${OUT}<br><br><b>${iface}</b><br>"
-            OUT="${OUT}SSID: <code>${SSID}</code> (${MODE})<br>"
+            OUT="${OUT}SSID: <code>$(html_escape "$SSID")</code> (${MODE})<br>"
             OUT="${OUT}Crypt: ${ENCRYPTION}<br>"
             if [ -n "$KEY" ] && [ "$KEY" != "-" ]; then
                 if [ "$WIFI_SHOW_KEY" != "1" ]; then
@@ -106,7 +106,7 @@ EOF
                 /Encryption:/ { split($0, a, "Encryption: "); enc = a[2] }
                 END {
                     if (ssid == "" || ssid == "unknown") ssid = ""
-                    gsub(/[^a-zA-Z0-9 ._-]/, "", ssid)
+                    gsub(/\|/, "_", ssid)
                     if (ssid == "") ssid = "Hidden"
                     if (signal == "") signal = lq
                     printf "%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s", \
@@ -163,7 +163,7 @@ EOF
 
             OUT="${OUT}<br><br><b>${ICON} ${iface}</b><br>"
             OUT="${OUT}<i>${CHIP}</i><br>"
-            OUT="${OUT}SSID: <code>${SSID}</code><br>"
+            OUT="${OUT}SSID: <code>$(html_escape "$SSID")</code><br>"
             OUT="${OUT}BSSID: ${BSSID} | Country: ${COUNTRY}<br>"
             OUT="${OUT}Mode: ${STANDARD} (${WIDTH})<br>"
             OUT="${OUT}Crypt: ${ENC_LIVE}<br>"

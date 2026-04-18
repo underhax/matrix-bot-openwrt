@@ -109,3 +109,22 @@ phy1" ]
         return 1
     }
 }
+
+@test "get_wifi_info: preserves special characters and emojis in SSID" {
+    iwinfo() {
+        if [ "$1" = "phy_special" ] && [ "$2" = "info" ]; then
+            echo 'ESSID: "WIFI 🚀 + 5G <test>! & @ # $ % ^ * ( )"'
+            echo 'Mode: Master  Channel: 11 (2.412 GHz)'
+            echo 'Bit Rate: 144.4 MBit/s'
+        elif [ "$*" = "" ]; then
+            echo 'phy_special      ESSID: "WIFI 🚀 + 5G <test>! & @ # $ % ^ * ( )"'
+        fi
+    }
+
+    run get_wifi_info
+    [ "$status" -eq 0 ]
+    echo "$output" | grep -F -q "SSID: <code>WIFI 🚀 + 5G <test>! & @ # $ % ^ * ( )</code>" || {
+        echo "Failed output: $output"
+        return 1
+    }
+}
