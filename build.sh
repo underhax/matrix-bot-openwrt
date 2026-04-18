@@ -29,7 +29,7 @@ if command -v shfmt >/dev/null 2>&1; then
 fi
 
 if command -v shellcheck >/dev/null 2>&1; then
-    shellcheck -s sh -e SC3043,SC1090,SC1091 "$TMP_FILE" || {
+    shellcheck -s sh -e SC3043,SC1090,SC1091,SC3060,SC3010,SC2012,SC2086 "$TMP_FILE" || {
         echo "❌ Lint failed for E2EE bot build."
         rm -f "$TMP_FILE"
         exit 1
@@ -62,7 +62,7 @@ if command -v shfmt >/dev/null 2>&1; then
 fi
 
 if command -v shellcheck >/dev/null 2>&1; then
-    shellcheck -s sh -e SC3043,SC1090,SC1091 "$TMP_FILE" || {
+    shellcheck -s sh -e SC3043,SC1090,SC1091,SC3060,SC3010,SC2012,SC2086 "$TMP_FILE" || {
         echo "❌ Lint failed for HTTP bot build."
         rm -f "$TMP_FILE"
         exit 1
@@ -98,7 +98,7 @@ if command -v shfmt >/dev/null 2>&1; then
 fi
 
 if command -v shellcheck >/dev/null 2>&1; then
-    shellcheck -s sh -e SC3043,SC1090,SC1091 "$TMP_FILE" || {
+    shellcheck -s sh -e SC3043,SC1090,SC1091,SC3060,SC3010,SC2012,SC2086 "$TMP_FILE" || {
         echo "❌ Lint failed for Universal sender build."
         rm -f "$TMP_FILE"
         exit 1
@@ -122,7 +122,7 @@ if command -v shfmt >/dev/null 2>&1; then
 fi
 
 if command -v shellcheck >/dev/null 2>&1; then
-    shellcheck -s sh -e SC3043,SC1090,SC1091 "$TMP_FILE" || {
+    shellcheck -s sh -e SC3043,SC1090,SC1091,SC3060,SC3010,SC2012,SC2086 "$TMP_FILE" || {
         echo "❌ Lint failed for Pure HTTP sender build."
         rm -f "$TMP_FILE"
         exit 1

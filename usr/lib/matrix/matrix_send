@@ -35,7 +35,6 @@ if [ ! -f "$CONF_FILE" ]; then
     exit 1
 fi
 
-# shellcheck disable=SC2012
 _conf_meta=$(ls -n "$CONF_FILE" 2>/dev/null | awk 'NR==1 {printf "%s:%s", $3, $1}')
 
 if [ -z "$_conf_meta" ] || ! verify_conf_meta "$_conf_meta"; then

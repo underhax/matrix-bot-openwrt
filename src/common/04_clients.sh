@@ -128,7 +128,6 @@ get_wired_clients() {
                     printf "%s ", iface_dev[s]
         }')
 
-    # shellcheck disable=SC2086
     local BRIDGE_NETS
     BRIDGE_NETS=$(ip -4 addr show 2>/dev/null | awk -v devs=" $BRIDGE_DEVS " '
         /inet / && index(devs, " " $NF " ") > 0 { printf "%s=%s ", $2, $NF }')

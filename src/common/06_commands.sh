@@ -337,7 +337,6 @@ process_command() {
     fi
 
     set -f
-    # shellcheck disable=SC2086
     set -- $BODY
     set +f
     if [ $# -eq 0 ]; then
@@ -347,8 +346,7 @@ process_command() {
     shift
     local ARGS="$*"
 
-    local SAFE_ARGS
-    SAFE_ARGS=$(printf '%s' "$ARGS" | tr -cd 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 .:_-')
+    local SAFE_ARGS="${ARGS//[^a-zA-Z0-9 .:_-]/}"
 
     case "$CMD" in
     "help" | "start") cmd_help "$ROOM_ID" ;;

@@ -9,7 +9,6 @@ sanitize_user_id() {
     esac
 }
 
-# shellcheck disable=SC3060
 html_escape() {
     case "$1" in
     *\&* | *\<* | *\>* | *\"* | *\'*)
