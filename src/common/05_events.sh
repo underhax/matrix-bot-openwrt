@@ -8,10 +8,10 @@ init_encryption_cache() {
 
     ENCRYPTED_CACHE=""
 
-    local tmp_file="/tmp/enc_check_$$.tmp"
-    local hdr_file="/tmp/mhdr_enc_$$.tmp"
+    local tmp_file="$BOT_RUN_DIR/enc_check.tmp"
+    local hdr_file="$BOT_RUN_DIR/mhdr_enc.tmp"
     (umask 177 && set -C && : >"$tmp_file" && : >"$hdr_file") || {
-        printf 'Failed to create temp files in /tmp\n' >&2
+        printf 'Failed to create temp files in %s\n' "$BOT_RUN_DIR" >&2
         exit 1
     }
 

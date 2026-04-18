@@ -1,15 +1,11 @@
 listen_http() {
     printf 'Starting HTTP Listener...\n'
-    BATCH_FILE="/tmp/matrix_next_batch"
+    BATCH_FILE="$BOT_RUN_DIR/matrix_next_batch"
     START_TIME=$(date +%s)
 
-    local sync_tmp="/tmp/sync_$$.tmp"
-    local evt_tmp="/tmp/evt_$$.tmp"
-    local hdr_file="/tmp/mhdr_http_$$.tmp"
-    (umask 177 && set -C && : >"$sync_tmp" && : >"$evt_tmp" && : >"$hdr_file") || {
-        printf 'Failed to create temp files in /tmp\n' >&2
-        exit 1
-    }
+    local sync_tmp="$BOT_RUN_DIR/sync.tmp"
+    local evt_tmp="$BOT_RUN_DIR/evt.tmp"
+    local hdr_file="$BOT_RUN_DIR/hdr.tmp"
 
     printf 'header = "Authorization: Bearer %s"\n' "$MATRIX_ACCESS_TOKEN" >"$hdr_file"
 
@@ -26,9 +22,6 @@ listen_http() {
 
         local enc_next
         enc_next=$(printf '%s' "$NEXT" | sed 's/%/%25/g; s/+/%2B/g; s/=/%3D/g; s/&/%26/g')
-
-        : >"$sync_tmp"
-        : >"$evt_tmp"
 
         curl -s --connect-timeout 10 -m 40 -K "$hdr_file" -o "$sync_tmp" \
             "$MATRIX_URL/_matrix/client/v3/sync?timeout=30000&since=$enc_next"

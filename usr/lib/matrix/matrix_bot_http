@@ -31,13 +31,16 @@ urlencode_room() {
 readonly BUILD_TYPE="http"
 readonly SENDER_SCRIPT="/usr/lib/matrix/matrix_send_http"
 readonly DEFAULT_SERVICES="dnsmasq firewall network odhcpd cron uhttpd"
+readonly BOT_RUN_DIR="/tmp/matrix_bot_http_$$"
+
+rm -rf -- "$BOT_RUN_DIR"
+mkdir -m 0700 "$BOT_RUN_DIR" || exit 1
 
 cleanup() {
     trap - INT TERM EXIT
     printf '\nStopping Matrix Bot (HTTP)...\n'
 
-    rm -f -- "/tmp/sync_${$}"* "/tmp/evt_${$}"* "/tmp/enc_check_${$}"* \
-        "/tmp/mhdr_${$}"* "/tmp/mbody_${$}"* "/tmp/mwgetrc_${$}"*
+    rm -rf -- "$BOT_RUN_DIR" 2>/dev/null
 
     for p in $(jobs -p); do
         kill -TERM "$p" 2>/dev/null
@@ -639,10 +642,10 @@ init_encryption_cache() {
 
     ENCRYPTED_CACHE=""
 
-    local tmp_file="/tmp/enc_check_$$.tmp"
-    local hdr_file="/tmp/mhdr_enc_$$.tmp"
+    local tmp_file="$BOT_RUN_DIR/enc_check.tmp"
+    local hdr_file="$BOT_RUN_DIR/mhdr_enc.tmp"
     (umask 177 && set -C && : >"$tmp_file" && : >"$hdr_file") || {
-        printf 'Failed to create temp files in /tmp\n' >&2
+        printf 'Failed to create temp files in %s\n' "$BOT_RUN_DIR" >&2
         exit 1
     }
 
@@ -1118,16 +1121,12 @@ process_command() {
 }
 listen_http() {
     printf 'Starting HTTP Listener...\n'
-    BATCH_FILE="/tmp/matrix_next_batch"
+    BATCH_FILE="$BOT_RUN_DIR/matrix_next_batch"
     START_TIME=$(date +%s)
 
-    local sync_tmp="/tmp/sync_$$.tmp"
-    local evt_tmp="/tmp/evt_$$.tmp"
-    local hdr_file="/tmp/mhdr_http_$$.tmp"
-    (umask 177 && set -C && : >"$sync_tmp" && : >"$evt_tmp" && : >"$hdr_file") || {
-        printf 'Failed to create temp files in /tmp\n' >&2
-        exit 1
-    }
+    local sync_tmp="$BOT_RUN_DIR/sync.tmp"
+    local evt_tmp="$BOT_RUN_DIR/evt.tmp"
+    local hdr_file="$BOT_RUN_DIR/hdr.tmp"
 
     printf 'header = "Authorization: Bearer %s"\n' "$MATRIX_ACCESS_TOKEN" >"$hdr_file"
 
@@ -1144,9 +1143,6 @@ listen_http() {
 
         local enc_next
         enc_next=$(printf '%s' "$NEXT" | sed 's/%/%25/g; s/+/%2B/g; s/=/%3D/g; s/&/%26/g')
-
-        : >"$sync_tmp"
-        : >"$evt_tmp"
 
         curl -s --connect-timeout 10 -m 40 -K "$hdr_file" -o "$sync_tmp" \
             "$MATRIX_URL/_matrix/client/v3/sync?timeout=30000&since=$enc_next"
