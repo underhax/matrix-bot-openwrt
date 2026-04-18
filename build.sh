@@ -25,7 +25,7 @@ cat src/common/00_base.sh \
     src/e2ee/08_main.sh >"$TMP_FILE"
 
 if command -v shfmt >/dev/null 2>&1; then
-    shfmt -w -s -i 4 "$TMP_FILE"
+    shfmt -ln bash -w -s -i 4 "$TMP_FILE"
 fi
 
 if command -v shellcheck >/dev/null 2>&1; then
@@ -58,7 +58,7 @@ cat src/common/00_base.sh \
     src/http/08_main.sh >"$TMP_FILE"
 
 if command -v shfmt >/dev/null 2>&1; then
-    shfmt -w -s -i 4 "$TMP_FILE"
+    shfmt -ln bash -w -s -i 4 "$TMP_FILE"
 fi
 
 if command -v shellcheck >/dev/null 2>&1; then
@@ -94,7 +94,7 @@ cat src/common/00_base.sh \
     src/common/sender_05_dispatch.sh >"$TMP_FILE"
 
 if command -v shfmt >/dev/null 2>&1; then
-    shfmt -w -s -i 4 "$TMP_FILE"
+    shfmt -ln bash -w -s -i 4 "$TMP_FILE"
 fi
 
 if command -v shellcheck >/dev/null 2>&1; then
@@ -118,7 +118,7 @@ cat src/common/00_base.sh \
     src/common/sender_05_dispatch.sh >"$TMP_FILE"
 
 if command -v shfmt >/dev/null 2>&1; then
-    shfmt -w -s -i 4 "$TMP_FILE"
+    shfmt -ln bash -w -s -i 4 "$TMP_FILE"
 fi
 
 if command -v shellcheck >/dev/null 2>&1; then

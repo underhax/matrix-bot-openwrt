@@ -9,11 +9,16 @@ sanitize_user_id() {
     esac
 }
 
+# shellcheck disable=SC3060
 html_escape() {
-
     case "$1" in
     *\&* | *\<* | *\>* | *\"* | *\'*)
-        printf '%s' "$1" | sed 's/\&/\&amp;/g; s/</\&lt;/g; s/>/\&gt;/g; s/"/\&quot;/g; s/'"'"'/\&#39;/g'
+        local res="${1//&/&amp;}"
+        res="${res//</&lt;}"
+        res="${res//>/&gt;}"
+        res="${res//\"/&quot;}"
+        res="${res//\'/&#39;}"
+        printf '%s' "$res"
         ;;
     *)
         printf '%s' "$1"
