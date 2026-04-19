@@ -112,18 +112,7 @@ cmd_wan_ip() {
             res="❌ <b>WAN IP:</b> Could not determine (all sources failed)"
         fi
 
-        local i=0
-        local delay=2
-        while [ $i -lt 5 ]; do
-            sleep $delay
-            "$SENDER_SCRIPT" --room-id "$room_id" -- "$res" >/dev/null 2>&1 && break
-            i=$((i + 1))
-            delay=$((delay * 2))
-        done
-
-        if [ $i -eq 5 ]; then
-            logger -t matrix_bot "Failed to send WAN IP result after 5 attempts"
-        fi
+        send_with_retry "$room_id" "$res" "matrix_bot"
     ) &) &
     wait $!
 }

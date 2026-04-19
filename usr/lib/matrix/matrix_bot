@@ -533,6 +533,24 @@ reply() {
     wait $!
 }
 
+send_with_retry() {
+    local room_id="$1"
+    local message="$2"
+    local log_tag="${3:-matrix_bot}"
+    local i=0
+    local delay=2
+
+    while [ $i -lt 5 ]; do
+        sleep $delay
+        "$SENDER_SCRIPT" --room-id "$room_id" -- "$message" >/dev/null 2>&1 && return 0
+        i=$((i + 1))
+        delay=$((delay * 2))
+    done
+
+    logger -t "$log_tag" "Failed to send notification after 5 attempts"
+    return 1
+}
+
 background_exec() {
     local service_name="$1"
     local room_id="$2"
@@ -549,19 +567,7 @@ background_exec() {
             MSG="❌ <b>$service_name</b>: FAILED (Code $ERR_CODE)."
         fi
 
-        i=0
-        MAX_ATTEMPTS=5
-        delay=2
-        while [ $i -lt $MAX_ATTEMPTS ]; do
-            sleep $delay
-            "$SENDER_SCRIPT" --room-id "$room_id" -- "$MSG" >/dev/null 2>&1 && break
-            i=$((i + 1))
-            delay=$((delay * 2))
-        done
-
-        if [ $i -eq $MAX_ATTEMPTS ]; then
-            logger -t matrix_bot "Failed to send notification after $MAX_ATTEMPTS attempts: $service_name"
-        fi
+        send_with_retry "$room_id" "$MSG" "matrix_bot"
     ) &) &
     wait $!
 }
@@ -1256,18 +1262,7 @@ cmd_wan_ip() {
             res="❌ <b>WAN IP:</b> Could not determine (all sources failed)"
         fi
 
-        local i=0
-        local delay=2
-        while [ $i -lt 5 ]; do
-            sleep $delay
-            "$SENDER_SCRIPT" --room-id "$room_id" -- "$res" >/dev/null 2>&1 && break
-            i=$((i + 1))
-            delay=$((delay * 2))
-        done
-
-        if [ $i -eq 5 ]; then
-            logger -t matrix_bot "Failed to send WAN IP result after 5 attempts"
-        fi
+        send_with_retry "$room_id" "$res" "matrix_bot"
     ) &) &
     wait $!
 }
