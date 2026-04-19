@@ -1496,6 +1496,8 @@ listen_http() {
     printf 'Starting HTTP Listener...\n'
     BATCH_FILE="$BOT_RUN_DIR/matrix_next_batch"
     START_TIME=$(date +%s)
+    local backoff=5
+    local max_backoff=120
 
     local sync_tmp="$BOT_RUN_DIR/sync.tmp"
     local evt_tmp="$BOT_RUN_DIR/evt.tmp"
@@ -1503,9 +1505,20 @@ listen_http() {
 
     printf 'header = "Authorization: Bearer %s"\n' "$MATRIX_ACCESS_TOKEN" >"$hdr_file"
 
-    curl -s -m 20 -K "$hdr_file" -o "$sync_tmp" "$MATRIX_URL/_matrix/client/v3/sync?timeout=0"
-    NEXT=$(extract_json "$sync_tmp" '.next_batch // empty' '@.next_batch')
-    [ -z "$NEXT" ] && [ -f "$BATCH_FILE" ] && NEXT=$(cat "$BATCH_FILE")
+    while true; do
+        curl -s -m 20 -K "$hdr_file" -o "$sync_tmp" "$MATRIX_URL/_matrix/client/v3/sync?timeout=0"
+        NEXT=$(extract_json "$sync_tmp" '.next_batch // empty' '@.next_batch')
+        [ -z "$NEXT" ] && [ -f "$BATCH_FILE" ] && NEXT=$(cat "$BATCH_FILE")
+
+        if [ -z "$NEXT" ]; then
+            debug_log "Initial sync failed, backing off for ${backoff}s"
+            sleep "$backoff"
+            backoff=$((backoff * 2))
+            [ "$backoff" -gt "$max_backoff" ] && backoff=$max_backoff
+            continue
+        fi
+        break
+    done
 
     while true; do
         [ -n "$NEXT" ] && (
