@@ -2,7 +2,8 @@
 
 PATH="/usr/sbin:/usr/bin:/sbin:/bin"
 export LC_ALL=C PATH
-unset IFS
+IFS=" 	
+"
 set -u
 verify_conf_meta() {
     case "$1" in
@@ -27,6 +28,278 @@ sanitize_room_id() {
 
 urlencode_room() {
     printf '%s' "$1" | sed 's/!/%21/g; s/:/%3A/g'
+}
+
+validate_ipv4() {
+    local ip="$1"
+    case "$ip" in
+    *.*.*.*.*) return 1 ;;
+    *.*.*.*) ;;
+    *) return 1 ;;
+    esac
+
+    local OLD_IFS="$IFS"
+    set -f
+    IFS=.
+    set -- $ip
+    IFS="$OLD_IFS"
+    set +f
+
+    [ $# -eq 4 ] || return 1
+    for octet in "$@"; do
+        case "$octet" in
+        *[!0-9]*) return 1 ;;
+        "") return 1 ;;
+        esac
+        [ "$octet" -le 255 ] 2>/dev/null || return 1
+        case "$octet" in
+        0?*) return 1 ;;
+        esac
+    done
+    return 0
+}
+
+validate_ipv6() {
+    local ip="$1"
+    ip="${ip#\[}"
+    ip="${ip%\]}"
+
+    case "$ip" in
+    *[!a-fA-F0-9:]*) return 1 ;;
+    *:::*) return 1 ;;
+    :[!:]* | *[!:]:) return 1 ;;
+    esac
+
+    local dc="${ip#*::}"
+    if [ "$dc" != "$ip" ]; then
+        local dc2="${dc#*::}"
+        if [ "$dc2" != "$dc" ]; then
+            return 1
+        fi
+    fi
+
+    local OLD_IFS="$IFS"
+    set -f
+    IFS=:
+    set -- $ip
+    IFS="$OLD_IFS"
+    set +f
+
+    if [ "$dc" = "$ip" ] && [ $# -ne 8 ]; then
+        return 1
+    fi
+    if [ $# -gt 8 ]; then
+        return 1
+    fi
+
+    for hextet in "$@"; do
+        case "${#hextet}" in
+        0 | 1 | 2 | 3 | 4) ;;
+        *) return 1 ;;
+        esac
+    done
+    return 0
+}
+
+validate_domain() {
+    local domain="$1"
+    case "$domain" in
+    *[!abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789.-]*) return 1 ;;
+    -*) return 1 ;;
+    *-) return 1 ;;
+    .*) return 1 ;;
+    *.) return 1 ;;
+    *..*) return 1 ;;
+    esac
+    return 0
+}
+
+validate_domain_ip() {
+    local val="$1"
+    local var_name="$2"
+    local log_tag="$3"
+    [ -z "$val" ] && return 0
+
+    case "$val" in
+    *:*)
+        if ! validate_ipv6 "$val"; then
+            logger -t "$log_tag" "FATAL: $var_name contains invalid IPv6 structure."
+            return 1
+        fi
+        ;;
+    *[!0-9.]*)
+        if ! validate_domain "$val"; then
+            logger -t "$log_tag" "FATAL: $var_name contains invalid domain structure."
+            return 1
+        fi
+        ;;
+    *)
+        if ! validate_ipv4 "$val"; then
+            logger -t "$log_tag" "FATAL: $var_name contains invalid IPv4 structure."
+            return 1
+        fi
+        ;;
+    esac
+    return 0
+}
+
+validate_port() {
+    local val="$1"
+    local var_name="$2"
+    local log_tag="$3"
+    [ -z "$val" ] && return 0
+    case "$val" in
+    *[!0123456789]*)
+        logger -t "$log_tag" "FATAL: $var_name contains non-numeric characters."
+        return 1
+        ;;
+    esac
+    if [ "$val" -lt 1 ] 2>/dev/null || [ "$val" -gt 65535 ] 2>/dev/null; then
+        logger -t "$log_tag" "FATAL: $var_name must be between 1 and 65535."
+        return 1
+    fi
+    return 0
+}
+
+validate_domain_port() {
+    local val="$1"
+    local var_name="$2"
+    local log_tag="$3"
+    [ -z "$val" ] && return 0
+
+    local host=""
+    local port=""
+
+    case "$val" in
+    \[*\]:*)
+        host="${val%%]:*}]"
+        port="${val##*:}"
+        ;;
+    \[*\])
+        host="$val"
+        ;;
+    *:*:*)
+        host="$val"
+        ;;
+    *:*)
+        host="${val%%:*}"
+        port="${val##*:}"
+        ;;
+    *)
+        host="$val"
+        ;;
+    esac
+
+    validate_domain_ip "$host" "$var_name" "$log_tag" || return 1
+
+    if [ -n "$port" ]; then
+        validate_port "$port" "$var_name port" "$log_tag" || return 1
+    fi
+
+    return 0
+}
+
+validate_room_id() {
+    local val="$1"
+    local var_name="$2"
+    local log_tag="$3"
+    [ -z "$val" ] && return 0
+    case "$val" in
+    !*)
+        local body="${val#!}"
+        case "$body" in
+        *:*)
+            local localpart="${body%%:*}"
+            local serverpart="${body#*:}"
+
+            if [ -z "$localpart" ] || [ -z "$serverpart" ]; then
+                logger -t "$log_tag" "FATAL: $var_name has empty localpart or domain."
+                return 1
+            fi
+
+            case "$localpart" in
+            *[!abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._=/-]*)
+                logger -t "$log_tag" "FATAL: $var_name localpart contains invalid characters."
+                return 1
+                ;;
+            esac
+
+            if ! validate_domain_port "$serverpart" "$var_name domain" "$log_tag"; then
+                return 1
+            fi
+            ;;
+        *)
+            case "$body" in
+            *[!abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._=/-]*)
+                logger -t "$log_tag" "FATAL: $var_name contains invalid characters."
+                return 1
+                ;;
+            esac
+            ;;
+        esac
+        ;;
+    *)
+        logger -t "$log_tag" "FATAL: $var_name must start with '!'."
+        return 1
+        ;;
+    esac
+    return 0
+}
+
+validate_room_id_list() {
+    local val="$1"
+    local var_name="$2"
+    local log_tag="$3"
+    [ -z "$val" ] && return 0
+
+    set -f
+    set -- $val
+    set +f
+
+    for room in "$@"; do
+        if ! validate_room_id "$room" "$var_name" "$log_tag"; then
+            return 1
+        fi
+    done
+    return 0
+}
+
+validate_core_config() {
+    local invalid=0
+    local log_tag="$1"
+
+    local url_body
+    case "${MATRIX_URL:-}" in
+    http://* | https://*)
+        url_body="${MATRIX_URL#*://}"
+        if ! validate_domain_port "$url_body" "MATRIX_URL" "$log_tag"; then
+            invalid=1
+        fi
+        ;;
+    *)
+        logger -t "$log_tag" "FATAL: MATRIX_URL must start with 'http://' or 'https://'."
+        invalid=1
+        ;;
+    esac
+
+    case "${MATRIX_ACCESS_TOKEN:-}" in
+    syt_*)
+        case "${MATRIX_ACCESS_TOKEN}" in
+        *[!abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_]*)
+            logger -t "$log_tag" "FATAL: MATRIX_ACCESS_TOKEN contains invalid characters."
+            invalid=1
+            ;;
+        esac
+        ;;
+    *)
+        logger -t "$log_tag" "FATAL: MATRIX_ACCESS_TOKEN must start with 'syt_'."
+        invalid=1
+        ;;
+    esac
+
+    validate_room_id_list "${MATRIX_ROOM_IDS:-}" "MATRIX_ROOM_IDS" "$log_tag" || invalid=1
+
+    return "$invalid"
 }
 readonly CONF_FILE="/etc/config/bot.conf"
 
@@ -58,6 +331,21 @@ readonly MATRIX_URL MATRIX_ACCESS_TOKEN MATRIX_ROOM_IDS \
     SSH_HOST SSH_PORT SSH_USER SSH_KEY
 if [ -z "${MATRIX_URL:-}" ] || [ -z "${MATRIX_ACCESS_TOKEN:-}" ]; then
     printf '[Error] MATRIX_URL or MATRIX_ACCESS_TOKEN missing in config\n' >&2
+    exit 1
+fi
+
+validate_sender_config() {
+    local invalid=0
+
+    if ! validate_core_config "matrix_send"; then
+        invalid=1
+    fi
+
+    return "$invalid"
+}
+
+if ! validate_sender_config; then
+    printf "[Error] Strict config validation failed. Check syslog.\n" >&2
     exit 1
 fi
 DEBUG_MODE=0
