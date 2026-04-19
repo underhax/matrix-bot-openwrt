@@ -46,8 +46,13 @@ listen_http() {
 
         _sync_err=$(extract_json "$sync_tmp" '.errcode // empty' '@.errcode')
         if [ -n "$_sync_err" ]; then
-            debug_log "API error in sync response: $_sync_err, backing off"
-            sleep 10
+            if [ "$_sync_err" = "M_LIMIT_EXCEEDED" ]; then
+                _retry_ms=$(extract_json "$sync_tmp" '.retry_after_ms // 10000' '@.retry_after_ms')
+                sleep $((_retry_ms / 1000))
+            else
+                debug_log "API error in sync response: $_sync_err, backing off"
+                sleep 10
+            fi
             continue
         fi
 
