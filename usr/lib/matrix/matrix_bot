@@ -1528,6 +1528,8 @@ listen_e2ee() {
             -o StrictHostKeyChecking=yes \
             -o UserKnownHostsFile=/etc/matrix_bot_known_hosts \
             -o ConnectTimeout=15 \
+            -o ServerAliveInterval=5 \
+            -o ServerAliveCountMax=2 \
             -o BatchMode=yes \
             -tt "$SSH_USER@$SSH_HOST" "$MC_CMD" </dev/null 2>&1 >"$fifo" &
         ssh_pid=$!
