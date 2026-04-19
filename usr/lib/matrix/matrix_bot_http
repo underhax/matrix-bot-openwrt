@@ -632,8 +632,8 @@ EOF
             ENCRYPTION="-"
             SECTION=$(printf '%s\n' "$UCI_WIRELESS" | awk -F. -v pat=".ssid='$SSID'" 'index($0, pat) {print $1"."$2; exit}')
             if [ -n "$SECTION" ]; then
-                KEY=$(uci -q get "${SECTION}.key")
-                ENCRYPTION=$(uci -q get "${SECTION}.encryption")
+                KEY=$(printf '%s\n' "$UCI_WIRELESS" | awk -F= -v sect="${SECTION}.key=" 'index($0, sect)==1 {gsub(/'"'"'/, "", $2); print $2; exit}')
+                ENCRYPTION=$(printf '%s\n' "$UCI_WIRELESS" | awk -F= -v sect="${SECTION}.encryption=" 'index($0, sect)==1 {gsub(/'"'"'/, "", $2); print $2; exit}')
                 [ -z "$ENCRYPTION" ] && ENCRYPTION="Unknown"
             fi
 
@@ -727,18 +727,18 @@ EOF
 
             KEY="-"
             OCV="-"
+            WIFI_DEV=""
+            COUNTRY_UCI=""
             SECTION=$(printf '%s\n' "$UCI_WIRELESS" | awk -F. -v pat=".ssid='$SSID'" 'index($0, pat) {print $1"."$2; exit}')
 
             if [ -n "$SECTION" ]; then
-                KEY=$(uci -q get "${SECTION}.key")
-                OCV=$(uci -q get "${SECTION}.ocv")
+                KEY=$(printf '%s\n' "$UCI_WIRELESS" | awk -F= -v sect="${SECTION}.key=" 'index($0, sect)==1 {gsub(/'"'"'/, "", $2); print $2; exit}')
+                OCV=$(printf '%s\n' "$UCI_WIRELESS" | awk -F= -v sect="${SECTION}.ocv=" 'index($0, sect)==1 {gsub(/'"'"'/, "", $2); print $2; exit}')
                 [ -z "$OCV" ] && OCV="0"
 
                 if [ "$COUNTRY" = "World" ]; then
-                    local WIFI_DEV=""
-                    WIFI_DEV=$(uci -q get "${SECTION}.device")
-                    local COUNTRY_UCI=""
-                    [ -n "$WIFI_DEV" ] && COUNTRY_UCI=$(uci -q get "wireless.${WIFI_DEV}.country")
+                    WIFI_DEV=$(printf '%s\n' "$UCI_WIRELESS" | awk -F= -v sect="${SECTION}.device=" 'index($0, sect)==1 {gsub(/'"'"'/, "", $2); print $2; exit}')
+                    [ -n "$WIFI_DEV" ] && COUNTRY_UCI=$(printf '%s\n' "$UCI_WIRELESS" | awk -F= -v sect="wireless.${WIFI_DEV}.country=" 'index($0, sect)==1 {gsub(/'"'"'/, "", $2); print $2; exit}')
                     [ -n "$COUNTRY_UCI" ] && COUNTRY="$COUNTRY_UCI"
                 fi
             fi

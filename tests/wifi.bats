@@ -73,11 +73,8 @@ phy1" ]
         if [ "$1" = "show" ] && [ "$2" = "wireless" ]; then
             echo "wireless.default_radio0=wifi-iface"
             echo "wireless.default_radio0.ssid='Test_SSID'"
-        elif [ "$1" = "-q" ] && [ "$2" = "get" ]; then
-            case "$3" in
-            wireless.default_radio0.key) echo "password123" ;;
-            wireless.default_radio0.encryption) echo "psk2" ;;
-            esac
+            echo "wireless.default_radio0.key='password123'"
+            echo "wireless.default_radio0.encryption='psk2'"
         fi
     }
     WIFI_SHOW_KEY=0
@@ -94,11 +91,8 @@ phy1" ]
         if [ "$1" = "show" ] && [ "$2" = "wireless" ]; then
             echo "wireless.default_radio0=wifi-iface"
             echo "wireless.default_radio0.ssid='Test_SSID'"
-        elif [ "$1" = "-q" ] && [ "$2" = "get" ]; then
-            case "$3" in
-            wireless.default_radio0.key) echo "password123" ;;
-            wireless.default_radio0.encryption) echo "psk2" ;;
-            esac
+            echo "wireless.default_radio0.key='password123'"
+            echo "wireless.default_radio0.encryption='psk2'"
         fi
     }
     WIFI_SHOW_KEY=1
