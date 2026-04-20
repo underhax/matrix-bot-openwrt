@@ -1505,8 +1505,39 @@ listen_http() {
 
     printf 'header = "Authorization: Bearer %s"\n' "$MATRIX_ACCESS_TOKEN" >"$hdr_file"
 
+    local use_curl=1
+    if ! command -v curl >/dev/null 2>&1; then
+        if command -v wget >/dev/null 2>&1; then
+            use_curl=0
+            local wget_conf="$BOT_RUN_DIR/wgetrc.tmp"
+            printf 'header = Authorization: Bearer %s\n' "$MATRIX_ACCESS_TOKEN" >"$wget_conf"
+        else
+            printf 'FATAL: Neither curl nor wget available\n' >&2
+            exit 1
+        fi
+    fi
+
     while true; do
-        curl -s -m 20 -K "$hdr_file" -o "$sync_tmp" "$MATRIX_URL/_matrix/client/v3/sync?timeout=0"
+        if [ "$use_curl" -eq 1 ]; then
+            curl -s -m 20 --retry 2 --retry-delay 3 -K "$hdr_file" -o "$sync_tmp" \
+                "$MATRIX_URL/_matrix/client/v3/sync?timeout=0"
+            curl_exit=$?
+        else
+            WGETRC="$wget_conf" wget -q -O "$sync_tmp" --timeout=20 \
+                "$MATRIX_URL/_matrix/client/v3/sync?timeout=0"
+            wget_exit=$?
+            [ $wget_exit -eq 0 ] && curl_exit=0 || curl_exit=1
+        fi
+
+        case $curl_exit in
+        28) ;;
+        0) ;;
+        *)
+            sleep 5
+            continue
+            ;;
+        esac
+
         NEXT=$(extract_json "$sync_tmp" '.next_batch // empty' '@.next_batch')
         [ -z "$NEXT" ] && [ -f "$BATCH_FILE" ] && NEXT=$(cat "$BATCH_FILE")
 
@@ -1530,8 +1561,25 @@ listen_http() {
         local enc_next
         enc_next=$(printf '%s' "$NEXT" | sed 's/%/%25/g; s/+/%2B/g; s/=/%3D/g; s/&/%26/g')
 
-        curl -s --connect-timeout 10 -m 40 -K "$hdr_file" -o "$sync_tmp" \
-            "$MATRIX_URL/_matrix/client/v3/sync?timeout=30000&since=$enc_next"
+        if [ "$use_curl" -eq 1 ]; then
+            curl -s --connect-timeout 10 -m 40 --retry 2 --retry-delay 3 -K "$hdr_file" -o "$sync_tmp" \
+                "$MATRIX_URL/_matrix/client/v3/sync?timeout=30000&since=$enc_next"
+            curl_exit=$?
+        else
+            WGETRC="$wget_conf" wget -q -O "$sync_tmp" --timeout=40 \
+                "$MATRIX_URL/_matrix/client/v3/sync?timeout=30000&since=$enc_next"
+            wget_exit=$?
+            [ $wget_exit -eq 0 ] && curl_exit=0 || curl_exit=1
+        fi
+
+        case $curl_exit in
+        28) ;;
+        0) ;;
+        *)
+            sleep 5
+            continue
+            ;;
+        esac
 
         if [ ! -s "$sync_tmp" ]; then
             sleep 5
