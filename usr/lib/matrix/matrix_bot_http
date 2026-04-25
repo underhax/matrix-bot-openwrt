@@ -1250,7 +1250,7 @@ cmd_wan_ip() {
 
         local res
         if [ -n "$ip" ]; then
-            res="🤖 <b>WAN IP:</b> <code>$ip</code>"
+            res="🤖 <b>WAN IP:</b> <code>$(html_escape "$ip")</code>"
         else
             res="❌ <b>WAN IP:</b> Could not determine (all sources failed)"
         fi
