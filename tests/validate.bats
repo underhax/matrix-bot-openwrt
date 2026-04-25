@@ -99,6 +99,11 @@ setup() {
     export SSH_USER="user-name_1"
     export SSH_KEY="/root/.ssh/id_rsa"
 
+    ls() {
+        echo "-rw------- 1 0 0 100 Jan 1 00:00 file"
+    }
+    export -f ls
+
     source "${BATS_TEST_DIRNAME}/../src/e2ee/03_validate.sh"
     run validate_ssh_config
     [ "$status" -eq 0 ]

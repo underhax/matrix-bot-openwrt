@@ -9,12 +9,6 @@ try_ssh() {
         return 1
     fi
 
-    if [ ! -r "$SSH_KEY" ]; then
-        debug_echo "SSH key not found or not readable: $SSH_KEY"
-        [ "${MODE:-}" = "ssh" ] && printf '[Error] SSH key not accessible: %s\n' "$SSH_KEY" >&2
-        return 1
-    fi
-
     debug_echo "Attempting SSH -> Room: $TARGET_ROOM"
 
     printf "%s" "$MSG" | ssh -i "$SSH_KEY" -p "$SSH_PORT" \

@@ -99,42 +99,42 @@ setup() {
     [ "$output" = "" ]
 }
 
-@test "verify_conf_meta: accepts mode 600 owned by root" {
-    run verify_conf_meta "0:-rw-------"
+@test "verify_secure_meta: accepts mode 600 owned by root" {
+    run verify_secure_meta "0:-rw-------"
     [ "$status" -eq 0 ]
 }
 
-@test "verify_conf_meta: accepts mode 400 owned by root" {
-    run verify_conf_meta "0:-r--------"
+@test "verify_secure_meta: accepts mode 400 owned by root" {
+    run verify_secure_meta "0:-r--------"
     [ "$status" -eq 0 ]
 }
 
-@test "verify_conf_meta: rejects mode 644 even if owned by root" {
-    run verify_conf_meta "0:-rw-r--r--"
+@test "verify_secure_meta: rejects mode 644 even if owned by root" {
+    run verify_secure_meta "0:-rw-r--r--"
     [ "$status" -eq 1 ]
 }
 
-@test "verify_conf_meta: rejects mode 755 owned by root" {
-    run verify_conf_meta "0:-rwxr-xr-x"
+@test "verify_secure_meta: rejects mode 755 owned by root" {
+    run verify_secure_meta "0:-rwxr-xr-x"
     [ "$status" -eq 1 ]
 }
 
-@test "verify_conf_meta: rejects mode 600 owned by non-root" {
-    run verify_conf_meta "1000:-rw-------"
+@test "verify_secure_meta: rejects mode 600 owned by non-root" {
+    run verify_secure_meta "1000:-rw-------"
     [ "$status" -eq 1 ]
 }
 
-@test "verify_conf_meta: rejects mode 660 owned by root (group readable)" {
-    run verify_conf_meta "0:-rw-rw----"
+@test "verify_secure_meta: rejects mode 660 owned by root (group readable)" {
+    run verify_secure_meta "0:-rw-rw----"
     [ "$status" -eq 1 ]
 }
 
-@test "verify_conf_meta: rejects empty input" {
-    run verify_conf_meta ""
+@test "verify_secure_meta: rejects empty input" {
+    run verify_secure_meta ""
     [ "$status" -eq 1 ]
 }
 
-@test "verify_conf_meta: integration with ls -n on real file with mode 600" {
+@test "verify_secure_meta: integration with ls -n on real file with mode 600" {
     local tmpfile="${BATS_TEST_TMPDIR}/conf_test_600"
     printf 'TEST=1\n' >"$tmpfile"
     chmod 600 "$tmpfile"
@@ -145,7 +145,7 @@ setup() {
     echo "$meta" | grep -q ":-rw-------"
 }
 
-@test "verify_conf_meta: integration with ls -n on real file with mode 400" {
+@test "verify_secure_meta: integration with ls -n on real file with mode 400" {
     local tmpfile="${BATS_TEST_TMPDIR}/conf_test_400"
     printf 'TEST=1\n' >"$tmpfile"
     chmod 400 "$tmpfile"

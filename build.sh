@@ -16,6 +16,7 @@ cat src/common/00_base.sh \
     src/common/sender_01_init.sh \
     src/e2ee/bot_02_vars.sh \
     src/common/bot_03_validate.sh \
+    src/e2ee/03_validate.sh \
     src/common/02_helpers.sh \
     src/common/03_wifi.sh \
     src/common/04_clients.sh \
@@ -88,6 +89,7 @@ cat src/common/00_base.sh \
     src/common/sender_01_init.sh \
     src/e2ee/sender_02_vars.sh \
     src/common/sender_03_validate.sh \
+    src/e2ee/03_validate.sh \
     src/e2ee/sender_02_args.sh \
     src/common/sender_03_payload.sh \
     src/e2ee/sender_04_ssh_func.sh \

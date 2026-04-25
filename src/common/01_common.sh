@@ -1,4 +1,4 @@
-verify_conf_meta() {
+verify_secure_meta() {
     case "$1" in
     0:-rw-------* | 0:-r--------*) return 0 ;;
     esac
