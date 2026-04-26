@@ -1592,10 +1592,13 @@ listen_http() {
         if [ -n "$_sync_err" ]; then
             if [ "$_sync_err" = "M_LIMIT_EXCEEDED" ]; then
                 _retry_ms=$(extract_json "$sync_tmp" '.retry_after_ms // 10000' '@.retry_after_ms')
-                sleep $((_retry_ms / 1000))
+                _retry_sec=$((_retry_ms / 1000))
+                _jitter=$(awk 'BEGIN{srand(); print int(rand() * 5)}')
+                sleep $((_retry_sec + _jitter))
             else
                 debug_log "API error in sync response: $_sync_err, backing off"
-                sleep 10
+                _jitter=$(awk 'BEGIN{srand(); print int(rand() * 5)}')
+                sleep $((10 + _jitter))
             fi
             continue
         fi
