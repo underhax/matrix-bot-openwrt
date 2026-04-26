@@ -31,7 +31,7 @@ reply() {
 
     debug_log "Executing sender for $ROOM_ID"
     if [ "$DEBUG_MODE" -eq 1 ]; then
-        ("$SENDER_SCRIPT" -d --room-id "$ROOM_ID" -- "$MSG" </dev/null >>/tmp/matrix_send.log 2>&1 &) &
+        ("$SENDER_SCRIPT" -d --room-id "$ROOM_ID" -- "$MSG" </dev/null >>"$BOT_RUN_DIR/matrix_send.log" 2>&1 &) &
     else
         ("$SENDER_SCRIPT" --room-id "$ROOM_ID" -- "$MSG" </dev/null &) &
     fi

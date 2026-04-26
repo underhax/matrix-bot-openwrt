@@ -32,14 +32,10 @@ for CURRENT_ROOM in $ROOMS_TO_TRY; do
     ROOM_ID_ESC=$(urlencode_room "$TARGET_ROOM")
     FULL_URL="$MATRIX_URL/_matrix/client/v3/rooms/$ROOM_ID_ESC/send/m.room.message"
 
-    HDR_FILE="/tmp/mhdr_$$.tmp"
-    BODY_FILE="/tmp/mbody_$$.tmp"
-    WGET_CONF="/tmp/mwgetrc_$$.tmp"
+    HDR_FILE="$SEND_RUN_DIR/hdr.tmp"
+    BODY_FILE="$SEND_RUN_DIR/body.tmp"
+    WGET_CONF="$SEND_RUN_DIR/wgetrc.tmp"
 
-    (umask 177 && set -C && : >"$HDR_FILE" && : >"$BODY_FILE" && : >"$WGET_CONF") || {
-        printf '[Error] Failed to create temp files in /tmp\n' >&2
-        exit 1
-    }
     printf 'header = "Authorization: Bearer %s"\n' "$MATRIX_ACCESS_TOKEN" >"$HDR_FILE"
     printf '%s' "$JSON_PAYLOAD" >"$BODY_FILE"
     printf 'header = Authorization: Bearer %s\n' "$MATRIX_ACCESS_TOKEN" >"$WGET_CONF"
