@@ -28,12 +28,22 @@ html_escape() {
 reply() {
     local MSG="$1"
     local ROOM_ID="$2"
+    local log_file="$BOT_RUN_DIR/matrix_send.log"
 
     debug_log "Executing sender for $ROOM_ID"
     if [ "$DEBUG_MODE" -eq 1 ]; then
-        ("$SENDER_SCRIPT" -d --room-id "$ROOM_ID" -- "$MSG" </dev/null >>"$BOT_RUN_DIR/matrix_send.log" 2>&1 &) &
+        [ -f "$log_file" ] || (umask 177 && set -C && : >"$log_file") 2>/dev/null
+        if [ "$FORCE_WGET" -eq 1 ]; then
+            ("$SENDER_SCRIPT" -d --force-wget --room-id "$ROOM_ID" -- "$MSG" </dev/null >>"$log_file" 2>&1 &) &
+        else
+            ("$SENDER_SCRIPT" -d --room-id "$ROOM_ID" -- "$MSG" </dev/null >>"$log_file" 2>&1 &) &
+        fi
     else
-        ("$SENDER_SCRIPT" --room-id "$ROOM_ID" -- "$MSG" </dev/null &) &
+        if [ "$FORCE_WGET" -eq 1 ]; then
+            ("$SENDER_SCRIPT" --force-wget --room-id "$ROOM_ID" -- "$MSG" </dev/null &) &
+        else
+            ("$SENDER_SCRIPT" --room-id "$ROOM_ID" -- "$MSG" </dev/null &) &
+        fi
     fi
     wait $!
 }

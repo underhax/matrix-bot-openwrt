@@ -11,18 +11,42 @@ listen_http() {
     local evt_tmp="$BOT_RUN_DIR/evt.tmp"
     local hdr_file="$BOT_RUN_DIR/hdr.tmp"
 
-    printf 'header = "Authorization: Bearer %s"\n' "$MATRIX_ACCESS_TOKEN" >"$hdr_file"
-
     local use_curl=1
-    if ! command -v curl >/dev/null 2>&1; then
+    local wget_conf=""
+    if [ "$FORCE_WGET" -eq 1 ]; then
         if command -v wget >/dev/null 2>&1; then
             use_curl=0
-            local wget_conf="$BOT_RUN_DIR/wgetrc.tmp"
+            wget_conf="$BOT_RUN_DIR/wgetrc.tmp"
+            [ -f "$wget_conf" ] || (umask 177 && set -C && : >"$wget_conf") || {
+                printf 'FATAL: Failed to create wget config\n' >&2
+                exit 1
+            }
+            printf 'header = Authorization: Bearer %s\n' "$MATRIX_ACCESS_TOKEN" >"$wget_conf"
+        else
+            printf 'FATAL: --force-wget specified but wget not available\n' >&2
+            exit 1
+        fi
+    elif ! command -v curl >/dev/null 2>&1; then
+        if command -v wget >/dev/null 2>&1; then
+            use_curl=0
+            wget_conf="$BOT_RUN_DIR/wgetrc.tmp"
+            [ -f "$wget_conf" ] || (umask 177 && set -C && : >"$wget_conf") || {
+                printf 'FATAL: Failed to create wget config\n' >&2
+                exit 1
+            }
             printf 'header = Authorization: Bearer %s\n' "$MATRIX_ACCESS_TOKEN" >"$wget_conf"
         else
             printf 'FATAL: Neither curl nor wget available\n' >&2
             exit 1
         fi
+    fi
+
+    if [ "$use_curl" -eq 1 ]; then
+        [ -f "$hdr_file" ] || (umask 177 && set -C && : >"$hdr_file") || {
+            printf 'FATAL: Failed to create curl config\n' >&2
+            exit 1
+        }
+        printf 'header = "Authorization: Bearer %s"\n' "$MATRIX_ACCESS_TOKEN" >"$hdr_file"
     fi
 
     while true; do
@@ -69,15 +93,29 @@ listen_http() {
         local enc_next
         enc_next=$(printf '%s' "$NEXT" | sed 's/%/%25/g; s/+/%2B/g; s/=/%3D/g; s/&/%26/g')
 
+        http_code="200"
         if [ "$use_curl" -eq 1 ]; then
-            curl -s --connect-timeout 10 -m 40 --retry 2 --retry-delay 3 -K "$hdr_file" -o "$sync_tmp" \
-                "$MATRIX_URL/_matrix/client/v3/sync?timeout=30000&since=$enc_next"
+            http_code=$(curl -s -w "%{http_code}" --connect-timeout 10 -m 40 --retry 2 --retry-delay 3 -K "$hdr_file" -o "$sync_tmp" \
+                "$MATRIX_URL/_matrix/client/v3/sync?timeout=30000&since=$enc_next")
             curl_exit=$?
         else
-            WGETRC="$wget_conf" wget -q -O "$sync_tmp" --timeout=40 \
-                "$MATRIX_URL/_matrix/client/v3/sync?timeout=30000&since=$enc_next"
+            local wget_headers="$BOT_RUN_DIR/wget_headers.tmp"
+            WGETRC="$wget_conf" wget -q -S -O "$sync_tmp" --timeout=40 \
+                "$MATRIX_URL/_matrix/client/v3/sync?timeout=30000&since=$enc_next" 2>"$wget_headers"
             wget_exit=$?
             [ $wget_exit -eq 0 ] && curl_exit=0 || curl_exit=1
+
+            if grep -qE "^[[:space:]]*HTTP/[0-9.]+ 429" "$wget_headers" 2>/dev/null; then
+                http_code="429"
+            fi
+            rm -f -- "$wget_headers" 2>/dev/null
+        fi
+
+        if [ "$http_code" = "429" ]; then
+            debug_log "Infrastructure Rate Limit (HTTP 429) detected, backing off"
+            _jitter=$(awk 'BEGIN{srand(); print int(rand() * 5)}')
+            sleep $((30 + _jitter))
+            continue
         fi
 
         case $curl_exit in

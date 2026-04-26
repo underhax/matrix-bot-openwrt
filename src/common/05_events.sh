@@ -17,6 +17,8 @@ init_encryption_cache() {
 
     printf 'header = "Authorization: Bearer %s"\n' "$MATRIX_ACCESS_TOKEN" >"$hdr_file"
 
+    local wget_conf=""
+
     local enc_room algo attempt errcode
     for room in $targets; do
         room=$(sanitize_room_id "$room")
@@ -28,9 +30,28 @@ init_encryption_cache() {
         attempt=0
         while [ "$attempt" -lt 3 ]; do
             : >"$tmp_file"
-            curl -s -m 15 -K "$hdr_file" \
-                -o "$tmp_file" \
-                "$MATRIX_URL/_matrix/client/v3/rooms/$enc_room/state/m.room.encryption"
+            if [ "$FORCE_WGET" -eq 0 ] && command -v curl >/dev/null 2>&1; then
+                debug_log "Transport: CURL (encryption check for $room)"
+                curl -s -m 15 -K "$hdr_file" \
+                    -o "$tmp_file" \
+                    "$MATRIX_URL/_matrix/client/v3/rooms/$enc_room/state/m.room.encryption"
+            elif command -v wget >/dev/null 2>&1; then
+                if [ -z "$wget_conf" ]; then
+                    wget_conf="$BOT_RUN_DIR/wget_enc.tmp"
+                    [ -f "$wget_conf" ] || (umask 177 && set -C && : >"$wget_conf") || {
+                        printf 'Failed to create wget config in %s\n' "$BOT_RUN_DIR" >&2
+                        break
+                    }
+                    printf 'header = Authorization: Bearer %s\n' "$MATRIX_ACCESS_TOKEN" >"$wget_conf"
+                fi
+                debug_log "Transport: WGET (encryption check for $room)"
+                WGETRC="$wget_conf" wget -q -O "$tmp_file" \
+                    --timeout=15 \
+                    "$MATRIX_URL/_matrix/client/v3/rooms/$enc_room/state/m.room.encryption"
+            else
+                debug_log "Neither curl nor wget available for encryption check"
+                break
+            fi
 
             errcode=$(extract_json "$tmp_file" '.errcode // empty' '@.errcode')
 
@@ -58,6 +79,7 @@ init_encryption_cache() {
     done
 
     rm -f -- "$tmp_file" "$hdr_file"
+    [ -n "$wget_conf" ] && rm -f -- "$wget_conf"
 }
 
 core_handle_event() {
