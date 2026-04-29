@@ -15,7 +15,7 @@ A lightweight, POSIX shell–based Matrix bot for remote router management over 
 - Security alerts forwarded to a dedicated admin room on unauthorized access attempts.
 - Managed by `procd` — automatic restart on crash, logs via `logread`.
 
-**Compatibility:** Successfully tested on OpenWrt 25.12.0 (Xiaomi Mi Router 3G).
+**Compatibility:** Successfully tested on OpenWrt 25.12.2 (Xiaomi Mi Router 3G).
 
 ---
 
@@ -151,7 +151,7 @@ ssh -i "$SSH_KEY" -p "$SSH_PORT" \
     -o BatchMode=yes \
     -o ConnectTimeout=10 \
     "$SSH_USER@$SSH_HOST" exit 2>&1 && \
-echo "Host key saved." && cat /etc/matrix_bot_known_hosts
+echo "Host key saved." && chmod 600 /etc/matrix_bot_known_hosts && cat /etc/matrix_bot_known_hosts
 ```
 
 This stores the host key in `/etc/matrix_bot_known_hosts`. The bot uses `StrictHostKeyChecking=yes` against this file — MITM attacks will be rejected.
