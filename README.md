@@ -120,9 +120,9 @@ apk add nginx
 ```sh
 mkdir -p /usr/lib/matrix
 # Download Bot, Universal Sender, and Init script
-curl -sSL "https://raw.githubusercontent.com/underhax/matrix-bot-openwrt/refs/tags/v1.0.0/usr/lib/matrix/matrix_bot" -o /usr/lib/matrix/matrix_bot
-curl -sSL "https://raw.githubusercontent.com/underhax/matrix-bot-openwrt/refs/tags/v1.0.0/usr/lib/matrix/matrix_send" -o /usr/lib/matrix/matrix_send
-curl -sSL "https://raw.githubusercontent.com/underhax/matrix-bot-openwrt/refs/tags/v1.0.0/etc/init.d/matrixbot" -o /etc/init.d/matrixbot
+curl -sSL "https://raw.githubusercontent.com/underhax/matrix-bot-openwrt/refs/tags/v1.1.0/usr/lib/matrix/matrix_bot" -o /usr/lib/matrix/matrix_bot
+curl -sSL "https://raw.githubusercontent.com/underhax/matrix-bot-openwrt/refs/tags/v1.1.0/usr/lib/matrix/matrix_send" -o /usr/lib/matrix/matrix_send
+curl -sSL "https://raw.githubusercontent.com/underhax/matrix-bot-openwrt/refs/tags/v1.1.0/etc/init.d/matrixbot" -o /etc/init.d/matrixbot
 
 # Set permissions
 chmod 500 /usr/lib/matrix/matrix_*
@@ -214,9 +214,9 @@ apk add nginx
 ```sh
 mkdir -p /usr/lib/matrix
 # Download HTTP Bot, Pure HTTP Sender, and Init script
-curl -sSL "https://raw.githubusercontent.com/underhax/matrix-bot-openwrt/refs/tags/v1.0.0/usr/lib/matrix/matrix_bot_http" -o /usr/lib/matrix/matrix_bot_http
-curl -sSL "https://raw.githubusercontent.com/underhax/matrix-bot-openwrt/refs/tags/v1.0.0/usr/lib/matrix/matrix_send_http" -o /usr/lib/matrix/matrix_send_http
-curl -sSL "https://raw.githubusercontent.com/underhax/matrix-bot-openwrt/refs/tags/v1.0.0/etc/init.d/matrixbot_http" -o /etc/init.d/matrixbot_http
+curl -sSL "https://raw.githubusercontent.com/underhax/matrix-bot-openwrt/refs/tags/v1.1.0/usr/lib/matrix/matrix_bot_http" -o /usr/lib/matrix/matrix_bot_http
+curl -sSL "https://raw.githubusercontent.com/underhax/matrix-bot-openwrt/refs/tags/v1.1.0/usr/lib/matrix/matrix_send_http" -o /usr/lib/matrix/matrix_send_http
+curl -sSL "https://raw.githubusercontent.com/underhax/matrix-bot-openwrt/refs/tags/v1.1.0/etc/init.d/matrixbot_http" -o /etc/init.d/matrixbot_http
 
 # Set permissions
 chmod 500 /usr/lib/matrix/matrix_*
