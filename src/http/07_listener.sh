@@ -7,7 +7,7 @@ listen_http() {
     local TAB
     TAB="$(printf '\t')"
     local _use_jq=0
-    if [ "$FORCE_JSONFILTER" -eq 0 ] && command -v jq >/dev/null 2>&1; then
+    if [ "$FORCE_JSONFILTER" -eq 0 ] && jq --version >/dev/null 2>&1; then
         _use_jq=1
     fi
     debug_log "JSON parser: $([ "$_use_jq" -eq 1 ] && printf 'jq' || printf 'jsonfilter')"
@@ -31,7 +31,7 @@ listen_http() {
             printf 'FATAL: --force-wget specified but wget not available\n' >&2
             exit 1
         fi
-    elif ! command -v curl >/dev/null 2>&1; then
+    elif ! curl --version >/dev/null 2>&1; then
         if command -v wget >/dev/null 2>&1; then
             use_curl=0
             wget_conf="$BOT_RUN_DIR/wgetrc.tmp"

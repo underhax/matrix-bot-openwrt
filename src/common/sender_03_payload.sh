@@ -8,7 +8,7 @@ if [ "$DEBUG_MODE" -eq 1 ]; then
     printf '%s\n' "-----------------------"
 fi
 
-if [ "$FORCE_AWK_FALLBACK" -eq 0 ] && command -v jq >/dev/null 2>&1; then
+if [ "$FORCE_AWK_FALLBACK" -eq 0 ] && jq --version >/dev/null 2>&1; then
     debug_echo "JSON Strategy: JQ (Best Practice)"
     JSON_PAYLOAD=$(jq -n --arg b "$PLAIN_TEXT" --arg f "$MSG" \
         '{msgtype: "m.text", body: $b, format: "org.matrix.custom.html", formatted_body: $f}')

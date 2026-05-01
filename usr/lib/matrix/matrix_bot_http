@@ -304,10 +304,14 @@ validate_core_config() {
 readonly BUILD_TYPE="http"
 readonly SENDER_SCRIPT="/usr/lib/matrix/matrix_send_http"
 readonly DEFAULT_SERVICES="dnsmasq firewall network odhcpd cron uhttpd"
-readonly BOT_RUN_DIR="/tmp/matrix_bot_http_$$"
+read -r _rand </proc/sys/kernel/random/uuid 2>/dev/null || _rand="fallback"
+_rand="${_rand%%-*}"
+readonly BOT_RUN_DIR="/tmp/matrix_bot_http_$$_${_rand}.d"
 
-rm -rf -- "$BOT_RUN_DIR"
-mkdir -m 0700 "$BOT_RUN_DIR" || exit 1
+mkdir -m 0700 "$BOT_RUN_DIR" 2>/dev/null || {
+    rm -rf -- "$BOT_RUN_DIR" 2>/dev/null
+    mkdir -m 0700 "$BOT_RUN_DIR" || exit 1
+}
 
 cleanup() {
     trap - INT TERM EXIT
@@ -599,7 +603,7 @@ get_services_list() {
 }
 
 extract_json() {
-    if [ "${FORCE_JSONFILTER:-0}" -eq 0 ] && command -v jq >/dev/null 2>&1; then
+    if [ "${FORCE_JSONFILTER:-0}" -eq 0 ] && jq --version >/dev/null 2>&1; then
         jq -r "$2" "$1" 2>/dev/null
     else
         jsonfilter -i "$1" -e "$3" 2>/dev/null
@@ -1069,7 +1073,7 @@ init_encryption_cache() {
         attempt=0
         while [ "$attempt" -lt 3 ]; do
             : >"$tmp_file"
-            if [ "$FORCE_WGET" -eq 0 ] && command -v curl >/dev/null 2>&1; then
+            if [ "$FORCE_WGET" -eq 0 ] && curl --version >/dev/null 2>&1; then
                 debug_log "Transport: CURL (encryption check for $room)"
                 curl -s -m 15 -K "$hdr_file" \
                     -o "$tmp_file" \
@@ -1092,7 +1096,7 @@ init_encryption_cache() {
                 break
             fi
 
-            if [ "${FORCE_JSONFILTER:-0}" -eq 0 ] && command -v jq >/dev/null 2>&1; then
+            if [ "${FORCE_JSONFILTER:-0}" -eq 0 ] && jq --version >/dev/null 2>&1; then
                 local _enc_out
                 _enc_out=$(jq -r '(.errcode // ""), (.algorithm // "")' "$tmp_file" 2>/dev/null)
                 {
@@ -1553,7 +1557,7 @@ listen_http() {
     local TAB
     TAB="$(printf '\t')"
     local _use_jq=0
-    if [ "$FORCE_JSONFILTER" -eq 0 ] && command -v jq >/dev/null 2>&1; then
+    if [ "$FORCE_JSONFILTER" -eq 0 ] && jq --version >/dev/null 2>&1; then
         _use_jq=1
     fi
     debug_log "JSON parser: $([ "$_use_jq" -eq 1 ] && printf 'jq' || printf 'jsonfilter')"
@@ -1577,7 +1581,7 @@ listen_http() {
             printf 'FATAL: --force-wget specified but wget not available\n' >&2
             exit 1
         fi
-    elif ! command -v curl >/dev/null 2>&1; then
+    elif ! curl --version >/dev/null 2>&1; then
         if command -v wget >/dev/null 2>&1; then
             use_curl=0
             wget_conf="$BOT_RUN_DIR/wgetrc.tmp"

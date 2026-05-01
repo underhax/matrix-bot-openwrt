@@ -475,7 +475,7 @@ if [ "$DEBUG_MODE" -eq 1 ]; then
     printf '%s\n' "-----------------------"
 fi
 
-if [ "$FORCE_AWK_FALLBACK" -eq 0 ] && command -v jq >/dev/null 2>&1; then
+if [ "$FORCE_AWK_FALLBACK" -eq 0 ] && jq --version >/dev/null 2>&1; then
     debug_echo "JSON Strategy: JQ (Best Practice)"
     JSON_PAYLOAD=$(jq -n --arg b "$PLAIN_TEXT" --arg f "$MSG" \
         '{msgtype: "m.text", body: $b, format: "org.matrix.custom.html", formatted_body: $f}')
@@ -527,12 +527,16 @@ try_ssh() {
 
     return $?
 }
-readonly SEND_RUN_DIR="/tmp/matrix_send_$$.d"
+read -r _rand </proc/sys/kernel/random/uuid 2>/dev/null || _rand="fallback"
+_rand="${_rand%%-*}"
+readonly SEND_RUN_DIR="/tmp/matrix_send_$$_${_rand}.d"
 
-rm -rf -- "$SEND_RUN_DIR" 2>/dev/null
-mkdir -m 0700 "$SEND_RUN_DIR" || {
-    printf '[Error] Failed to create secure temp directory\n' >&2
-    exit 1
+mkdir -m 0700 "$SEND_RUN_DIR" 2>/dev/null || {
+    rm -rf -- "$SEND_RUN_DIR" 2>/dev/null
+    mkdir -m 0700 "$SEND_RUN_DIR" || {
+        printf '[Error] Failed to create secure temp directory\n' >&2
+        exit 1
+    }
 }
 
 trap 'trap - INT TERM EXIT; rm -rf -- "$SEND_RUN_DIR" 2>/dev/null' INT TERM EXIT
@@ -575,7 +579,7 @@ for CURRENT_ROOM in $ROOMS_TO_TRY; do
     WGET_CONF="$SEND_RUN_DIR/wgetrc.tmp"
 
     _SUCCESS=0
-    if [ "$FORCE_WGET" -eq 0 ] && command -v curl >/dev/null 2>&1; then
+    if [ "$FORCE_WGET" -eq 0 ] && curl --version >/dev/null 2>&1; then
         debug_echo "Transport: CURL"
         [ -f "$BODY_FILE" ] || (umask 177 && set -C && : >"$BODY_FILE") || {
             printf '[Error] Failed to create temp file in %s\n' "$SEND_RUN_DIR" >&2

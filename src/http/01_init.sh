@@ -1,10 +1,14 @@
 readonly BUILD_TYPE="http"
 readonly SENDER_SCRIPT="/usr/lib/matrix/matrix_send_http"
 readonly DEFAULT_SERVICES="dnsmasq firewall network odhcpd cron uhttpd"
-readonly BOT_RUN_DIR="/tmp/matrix_bot_http_$$"
+read -r _rand </proc/sys/kernel/random/uuid 2>/dev/null || _rand="fallback"
+_rand="${_rand%%-*}"
+readonly BOT_RUN_DIR="/tmp/matrix_bot_http_$$_${_rand}.d"
 
-rm -rf -- "$BOT_RUN_DIR"
-mkdir -m 0700 "$BOT_RUN_DIR" || exit 1
+mkdir -m 0700 "$BOT_RUN_DIR" 2>/dev/null || {
+    rm -rf -- "$BOT_RUN_DIR" 2>/dev/null
+    mkdir -m 0700 "$BOT_RUN_DIR" || exit 1
+}
 
 cleanup() {
     trap - INT TERM EXIT

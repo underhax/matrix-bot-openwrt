@@ -37,7 +37,7 @@ for CURRENT_ROOM in $ROOMS_TO_TRY; do
     WGET_CONF="$SEND_RUN_DIR/wgetrc.tmp"
 
     _SUCCESS=0
-    if [ "$FORCE_WGET" -eq 0 ] && command -v curl >/dev/null 2>&1; then
+    if [ "$FORCE_WGET" -eq 0 ] && curl --version >/dev/null 2>&1; then
         debug_echo "Transport: CURL"
         [ -f "$BODY_FILE" ] || (umask 177 && set -C && : >"$BODY_FILE") || {
             printf '[Error] Failed to create temp file in %s\n' "$SEND_RUN_DIR" >&2

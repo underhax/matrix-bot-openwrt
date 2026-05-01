@@ -30,7 +30,7 @@ init_encryption_cache() {
         attempt=0
         while [ "$attempt" -lt 3 ]; do
             : >"$tmp_file"
-            if [ "$FORCE_WGET" -eq 0 ] && command -v curl >/dev/null 2>&1; then
+            if [ "$FORCE_WGET" -eq 0 ] && curl --version >/dev/null 2>&1; then
                 debug_log "Transport: CURL (encryption check for $room)"
                 curl -s -m 15 -K "$hdr_file" \
                     -o "$tmp_file" \
@@ -53,7 +53,7 @@ init_encryption_cache() {
                 break
             fi
 
-            if [ "${FORCE_JSONFILTER:-0}" -eq 0 ] && command -v jq >/dev/null 2>&1; then
+            if [ "${FORCE_JSONFILTER:-0}" -eq 0 ] && jq --version >/dev/null 2>&1; then
                 local _enc_out
                 _enc_out=$(jq -r '(.errcode // ""), (.algorithm // "")' "$tmp_file" 2>/dev/null)
                 {

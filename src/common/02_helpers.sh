@@ -102,7 +102,7 @@ get_services_list() {
 }
 
 extract_json() {
-    if [ "${FORCE_JSONFILTER:-0}" -eq 0 ] && command -v jq >/dev/null 2>&1; then
+    if [ "${FORCE_JSONFILTER:-0}" -eq 0 ] && jq --version >/dev/null 2>&1; then
         jq -r "$2" "$1" 2>/dev/null
     else
         jsonfilter -i "$1" -e "$3" 2>/dev/null
