@@ -92,7 +92,7 @@ cat src/common/00_base.sh \
     src/e2ee/sender_02_vars.sh \
     src/common/sender_03_validate.sh \
     src/e2ee/03_validate.sh \
-    src/e2ee/sender_02_args.sh \
+    src/common/sender_02_args.sh \
     src/common/sender_03_payload.sh \
     src/e2ee/sender_04_ssh_func.sh \
     src/common/sender_04_run_dir.sh \
@@ -118,7 +118,7 @@ cat src/common/00_base.sh \
     src/common/sender_01_init.sh \
     src/http/sender_02_vars.sh \
     src/common/sender_03_validate.sh \
-    src/http/sender_02_args.sh \
+    src/common/sender_02_args.sh \
     src/common/sender_03_payload.sh \
     src/common/sender_04_run_dir.sh \
     src/common/sender_05_dispatch.sh >"$TMP_FILE"

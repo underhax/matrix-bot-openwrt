@@ -329,6 +329,22 @@ SSH_USER="${SSH_USER:-}"
 SSH_KEY="${SSH_KEY:-}"
 readonly MATRIX_URL MATRIX_ACCESS_TOKEN MATRIX_ROOM_IDS \
     SSH_HOST SSH_PORT SSH_USER SSH_KEY
+
+MODE="auto"
+
+parse_mode_arg() {
+    case "$1" in
+    --ssh-only)
+        MODE="ssh"
+        return 0
+        ;;
+    --http-only)
+        MODE="http"
+        return 0
+        ;;
+    esac
+    return 1
+}
 if [ -z "${MATRIX_URL:-}" ] || [ -z "${MATRIX_ACCESS_TOKEN:-}" ]; then
     printf '[Error] MATRIX_URL or MATRIX_ACCESS_TOKEN missing in config\n' >&2
     exit 1
@@ -408,7 +424,6 @@ if ! validate_ssh_config; then
     exit 1
 fi
 DEBUG_MODE=0
-MODE="auto"
 RAW_TARGET_ROOM=""
 FORCE_WGET=0
 FORCE_AWK_FALLBACK=0
@@ -417,14 +432,6 @@ while [ $# -gt 0 ]; do
     case "$1" in
     -d | --debug)
         DEBUG_MODE=1
-        shift
-        ;;
-    --ssh-only)
-        MODE="ssh"
-        shift
-        ;;
-    --http-only)
-        MODE="http"
         shift
         ;;
     --force-wget)
@@ -450,6 +457,16 @@ while [ $# -gt 0 ]; do
         break
         ;;
     -*)
+        _handled=0
+        if type parse_mode_arg >/dev/null 2>&1; then
+            parse_mode_arg "$1" && _handled=1
+        fi
+
+        if [ "$_handled" -eq 1 ]; then
+            shift
+            continue
+        fi
+
         printf "Unknown option: %s\n" "$1" >&2
         exit 1
         ;;
