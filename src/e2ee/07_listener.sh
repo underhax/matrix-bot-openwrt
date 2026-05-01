@@ -3,11 +3,14 @@ listen_e2ee() {
     MC_CMD="matrix-commander-rs --listen forever --output json"
     [ "$DEBUG_MODE" -eq 1 ] && MC_CMD="$MC_CMD --log-level error"
     START_TIME=$(date +%s)
-    local CR
+    local CR TAB
     CR=$(printf '\r')
+    TAB=$(printf '\t')
     local backoff=5
     local max_backoff=120
     local connected=0
+    local _use_jq=0
+    command -v jq >/dev/null 2>&1 && _use_jq=1
 
     while true; do
         local fifo="$BOT_RUN_DIR/ssh_fifo"
@@ -50,32 +53,44 @@ listen_e2ee() {
             local tmp_line="$BOT_RUN_DIR/ssh_evt.tmp"
             printf '%s\n' "$line" >"$tmp_line"
 
-            TS=$(extract_json "$tmp_line" '.origin_server_ts // empty' '@.origin_server_ts')
-            SEC=${TS%???}
+            local _evt TS ROOM_ID SENDER BODY
+            if [ "$_use_jq" -eq 1 ]; then
+                _evt=$(jq -r '[
+                    (.origin_server_ts // 0 | tostring),
+                    (.room_id // ""),
+                    (.sender // ""),
+                    (.body // "")
+                ] | @tsv' "$tmp_line" 2>/dev/null)
+                IFS="$TAB" read -r TS ROOM_ID SENDER BODY <<EOF
+$_evt
+EOF
+            else
+                _evt=$(jsonfilter -i "$tmp_line" \
+                    -e '@.origin_server_ts' -e '@.room_id' \
+                    -e '@.sender' -e '@.body' 2>/dev/null)
+                {
+                    read -r TS
+                    read -r ROOM_ID
+                    read -r SENDER
+                    IFS= read -r BODY
+                } <<EOF
+$_evt
+EOF
+            fi
+            rm -f -- "$tmp_line"
 
+            SEC=${TS%???}
             if [ -n "$SEC" ] && [ "$SEC" -lt "$START_TIME" ]; then
-                rm -f -- "$tmp_line"
                 continue
             fi
 
-            ROOM_ID=$(extract_json "$tmp_line" '.room_id // empty' '@.room_id')
             ROOM_ID=$(sanitize_room_id "$ROOM_ID")
-            [ -z "$ROOM_ID" ] && {
-                rm -f -- "$tmp_line"
-                continue
-            }
+            [ -z "$ROOM_ID" ] && continue
 
-            SENDER=$(extract_json "$tmp_line" '.sender // empty' '@.sender')
             SENDER=$(sanitize_user_id "$SENDER")
-            [ -z "$SENDER" ] && {
-                rm -f -- "$tmp_line"
-                continue
-            }
-
-            BODY=$(extract_json "$tmp_line" '.body // empty' '@.body')
+            [ -z "$SENDER" ] && continue
 
             debug_log "Parsed - ROOM: $ROOM_ID | SENDER: $SENDER | BODY: $BODY"
-            rm -f -- "$tmp_line"
 
             core_handle_event "$ROOM_ID" "$SENDER" "$BODY"
         done <"$fifo"

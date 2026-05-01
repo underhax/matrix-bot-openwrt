@@ -586,7 +586,7 @@ for CURRENT_ROOM in $ROOMS_TO_TRY; do
             continue
         }
         printf '%s' "$JSON_PAYLOAD" >"$BODY_FILE"
-        printf 'header = "Authorization: Bearer %s\n' "$MATRIX_ACCESS_TOKEN" >"$HDR_FILE"
+        printf 'header = "Authorization: Bearer %s"\n' "$MATRIX_ACCESS_TOKEN" >"$HDR_FILE"
         if curl -s -f -X POST "$FULL_URL" \
             -K "$HDR_FILE" \
             -H "Content-Type: application/json" \
