@@ -213,6 +213,9 @@ EOF
                 done
             done
         fi
+        
+        backoff=5
+        sleep 1
         jobs >/dev/null 2>&1
     done
 }
