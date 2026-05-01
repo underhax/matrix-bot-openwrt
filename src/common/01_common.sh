@@ -1,3 +1,30 @@
+_HAS_CURL=""
+_HAS_JQ=""
+
+has_curl() {
+    if [ -z "$_HAS_CURL" ]; then
+        if command -v curl >/dev/null 2>&1 && curl --version >/dev/null 2>&1; then
+            _HAS_CURL=1
+        else
+            _HAS_CURL=0
+        fi
+        [ "${DEBUG_MODE:-0}" -eq 1 ] && printf '[DEBUG] has_curl: result=%s\n' "$_HAS_CURL"
+    fi
+    [ "$_HAS_CURL" -eq 1 ]
+}
+
+has_jq() {
+    if [ -z "$_HAS_JQ" ]; then
+        if command -v jq >/dev/null 2>&1 && jq --version >/dev/null 2>&1; then
+            _HAS_JQ=1
+        else
+            _HAS_JQ=0
+        fi
+        [ "${DEBUG_MODE:-0}" -eq 1 ] && printf '[DEBUG] has_jq: result=%s\n' "$_HAS_JQ"
+    fi
+    [ "$_HAS_JQ" -eq 1 ]
+}
+
 verify_secure_meta() {
     case "$1" in
     0:-rw-------* | 0:-r--------*) return 0 ;;

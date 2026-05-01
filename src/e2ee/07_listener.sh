@@ -10,7 +10,7 @@ listen_e2ee() {
     local max_backoff=120
     local connected=0
     local _use_jq=0
-    if [ "$FORCE_JSONFILTER" -eq 0 ] && jq --version >/dev/null 2>&1; then
+    if [ "$FORCE_JSONFILTER" -eq 0 ] && has_jq; then
         _use_jq=1
     fi
     debug_log "JSON parser: $([ "$_use_jq" -eq 1 ] && printf 'jq' || printf 'jsonfilter')"
