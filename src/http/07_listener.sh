@@ -6,6 +6,11 @@ listen_http() {
     local max_backoff=120
     local TAB
     TAB="$(printf '\t')"
+    local _use_jq=0
+    if [ "$FORCE_JSONFILTER" -eq 0 ] && command -v jq >/dev/null 2>&1; then
+        _use_jq=1
+    fi
+    debug_log "JSON parser: $([ "$_use_jq" -eq 1 ] && printf 'jq' || printf 'jsonfilter')"
 
     local sync_tmp="$BOT_RUN_DIR/sync.tmp"
     local evt_tmp="$BOT_RUN_DIR/evt.tmp"
@@ -150,7 +155,7 @@ listen_http() {
         NEW_NEXT=$(extract_json "$sync_tmp" '.next_batch // empty' '@.next_batch')
         [ -n "$NEW_NEXT" ] && NEXT="$NEW_NEXT"
 
-        if command -v jq >/dev/null 2>&1; then
+        if [ "$_use_jq" -eq 1 ]; then
             jq -r --argjson st "$START_TIME" '
                 .rooms.join // {} | to_entries[] |
                 .key as $room |
@@ -174,14 +179,27 @@ listen_http() {
                 while true; do
                     extract_json "$sync_tmp" ".rooms.join[\"$ROOM_ID\"].timeline.events[$i] // empty" "@.rooms.join[\"$ROOM_ID\"].timeline.events[$i]" >"$evt_tmp"
                     [ ! -s "$evt_tmp" ] && break
-                    TS=$(extract_json "$evt_tmp" '.origin_server_ts // empty' '@.origin_server_ts')
+
+                    local _ef
+                    _ef=$(jsonfilter -i "$evt_tmp" \
+                        -e '@.origin_server_ts' -e '@.type' \
+                        -e '@.sender' -e '@.content.body' 2>/dev/null)
+                    local TS TYPE SENDER BODY
+                    {
+                        read -r TS
+                        read -r TYPE
+                        read -r SENDER
+                        IFS= read -r BODY
+                    } <<EOF
+$_ef
+EOF
+
                     TS=${TS:-0}
                     SEC=$((TS / 1000))
                     [ "$SEC" -lt "$START_TIME" ] && {
                         i=$((i + 1))
                         continue
                     }
-                    TYPE=$(extract_json "$evt_tmp" '.type // empty' '@.type')
                     case "$TYPE" in
                     "m.room.message" | "m.room.encrypted") ;;
                     *)
@@ -189,9 +207,7 @@ listen_http() {
                         continue
                         ;;
                     esac
-                    SENDER=$(extract_json "$evt_tmp" '.sender // empty' '@.sender')
                     SENDER=$(sanitize_user_id "$SENDER")
-                    BODY=$(extract_json "$evt_tmp" '.content.body // empty' '@.content.body')
                     core_handle_event "$ROOM_ID" "$SENDER" "$BODY"
                     i=$((i + 1))
                 done

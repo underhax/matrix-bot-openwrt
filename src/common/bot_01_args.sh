@@ -1,5 +1,6 @@
 DEBUG_MODE=0
 FORCE_WGET=0
+FORCE_JSONFILTER=0
 
 while [ $# -gt 0 ]; do
     case "$1" in
@@ -10,9 +11,12 @@ while [ $# -gt 0 ]; do
     --force-wget)
         FORCE_WGET=1
         ;;
+    --force-jsonfilter)
+        FORCE_JSONFILTER=1
+        ;;
     esac
     shift
 done
 
-readonly DEBUG_MODE FORCE_WGET
+readonly DEBUG_MODE FORCE_WGET FORCE_JSONFILTER
 debug_log() { [ "$DEBUG_MODE" -eq 1 ] && printf "[DEBUG] %s\n" "$1"; }

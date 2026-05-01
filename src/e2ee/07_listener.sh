@@ -10,7 +10,10 @@ listen_e2ee() {
     local max_backoff=120
     local connected=0
     local _use_jq=0
-    command -v jq >/dev/null 2>&1 && _use_jq=1
+    if [ "$FORCE_JSONFILTER" -eq 0 ] && command -v jq >/dev/null 2>&1; then
+        _use_jq=1
+    fi
+    debug_log "JSON parser: $([ "$_use_jq" -eq 1 ] && printf 'jq' || printf 'jsonfilter')"
 
     while true; do
         local fifo="$BOT_RUN_DIR/ssh_fifo"
