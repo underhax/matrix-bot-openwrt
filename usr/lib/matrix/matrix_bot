@@ -723,14 +723,47 @@ get_wifi_info() {
 $_parsed
 EOF
 
-            KEY="-"
-            ENCRYPTION="-"
-            SECTION=$(printf '%s\n' "$UCI_WIRELESS" | awk -F. -v pat=".ssid='$SSID'" 'index($0, pat) {print $1"."$2; exit}')
-            if [ -n "$SECTION" ]; then
-                KEY=$(printf '%s\n' "$UCI_WIRELESS" | awk -F= -v sect="${SECTION}.key=" 'index($0, sect)==1 {gsub(/'"'"'/, "", $2); print $2; exit}')
-                ENCRYPTION=$(printf '%s\n' "$UCI_WIRELESS" | awk -F= -v sect="${SECTION}.encryption=" 'index($0, sect)==1 {gsub(/'"'"'/, "", $2); print $2; exit}')
-                [ -z "$ENCRYPTION" ] && ENCRYPTION="Unknown"
-            fi
+            _uci_parsed=$(printf '%s\n' "$UCI_WIRELESS" | awk -F= -v ssid="'$SSID'" '
+                function clean(s) { gsub(/^'\''|'\''$/, "", s); return s }
+                BEGIN { target_sect="" }
+                {
+                    split($1, a, ".");
+                    curr_sect = a[1]"."a[2];
+                    
+                    if (a[3] == "key") { 
+                        keys[curr_sect] = clean(substr($0, length($1)+2));
+                    }
+                    else if (a[3] == "encryption") { 
+                        encs[curr_sect] = clean(substr($0, length($1)+2));
+                    }
+                    
+                    if (index($0, ".ssid="ssid) > 0) {
+                        target_sect = curr_sect;
+                    }
+                }
+                END { 
+                    key = keys[target_sect]; if (key == "") key = "-";
+                    enc = encs[target_sect]; if (enc == "") enc = "Unknown";
+                    printf "%s\n%s\n%s\n", target_sect, key, enc
+                }
+            ')
+            {
+                read -r SECTION
+                IFS= read -r KEY
+                IFS= read -r ENCRYPTION
+            } <<EOF
+$_uci_parsed
+EOF
+            case "$ENCRYPTION" in
+            *sae-mixed*) ENCRYPTION="WPA2-PSK/WPA3-SAE Mixed Mode" ;;
+            *sae*) ENCRYPTION="WPA3-SAE" ;;
+            *psk-mixed*) ENCRYPTION="WPA-PSK/WPA2-PSK Mixed Mode" ;;
+            *psk2*) ENCRYPTION="WPA2-PSK" ;;
+            *psk*) ENCRYPTION="WPA-PSK" ;;
+            *owe*) ENCRYPTION="OWE" ;;
+            *none*) ENCRYPTION="No Encryption" ;;
+            "") ENCRYPTION="Unknown" ;;
+            esac
 
             OUT="${OUT}<br><br><b>${iface}</b><br>"
             OUT="${OUT}SSID: <code>$(html_escape "$SSID")</code> (${MODE})<br>"
@@ -820,23 +853,58 @@ EOF
 
             CLIENT_COUNT=$(iwinfo "$iface" assoclist | grep -c "dBm")
 
-            KEY="-"
-            OCV="-"
-            WIFI_DEV=""
-            COUNTRY_UCI=""
-            SECTION=$(printf '%s\n' "$UCI_WIRELESS" | awk -F. -v pat=".ssid='$SSID'" 'index($0, pat) {print $1"."$2; exit}')
+            _uci_parsed=$(printf '%s\n' "$UCI_WIRELESS" | awk -F= -v ssid="'$SSID'" '
+                function clean(s) { gsub(/^'\''|'\''$/, "", s); return s }
+                BEGIN { target_sect="" }
+                {
+                    split($1, a, ".");
+                    curr_sect = a[1]"."a[2];
+                    
+                    if (a[3] == "country") {
+                        countries[a[2]] = clean(substr($0, length($1)+2));
+                    }
+                    else if (a[3] == "key") { 
+                        keys[curr_sect] = clean(substr($0, length($1)+2));
+                    }
+                    else if (a[3] == "ocv") { 
+                        ocvs[curr_sect] = clean(substr($0, length($1)+2));
+                    }
+                    else if (a[3] == "device") { 
+                        devs[curr_sect] = clean(substr($0, length($1)+2));
+                    }
+                    
+                    if (index($0, ".ssid="ssid) > 0) {
+                        target_sect = curr_sect;
+                    }
+                }
+                END { 
+                    dev = devs[target_sect];
+                    country = countries[dev];
+                    key = keys[target_sect]; if (key == "") key = "-";
+                    ocv = ocvs[target_sect]; if (ocv == "") ocv = "0";
+                    printf "%s\n%s\n%s\n%s\n%s\n", target_sect, key, ocv, dev, country 
+                }
+            ')
+            {
+                read -r SECTION
+                IFS= read -r KEY
+                read -r OCV
+                read -r _
+                IFS= read -r COUNTRY_UCI
+            } <<EOF
+$_uci_parsed
+EOF
+            [ -z "$OCV" ] && OCV="0"
 
-            if [ -n "$SECTION" ]; then
-                KEY=$(printf '%s\n' "$UCI_WIRELESS" | awk -F= -v sect="${SECTION}.key=" 'index($0, sect)==1 {gsub(/'"'"'/, "", $2); print $2; exit}')
-                OCV=$(printf '%s\n' "$UCI_WIRELESS" | awk -F= -v sect="${SECTION}.ocv=" 'index($0, sect)==1 {gsub(/'"'"'/, "", $2); print $2; exit}')
-                [ -z "$OCV" ] && OCV="0"
-
-                if [ "$COUNTRY" = "World" ]; then
-                    WIFI_DEV=$(printf '%s\n' "$UCI_WIRELESS" | awk -F= -v sect="${SECTION}.device=" 'index($0, sect)==1 {gsub(/'"'"'/, "", $2); print $2; exit}')
-                    [ -n "$WIFI_DEV" ] && COUNTRY_UCI=$(printf '%s\n' "$UCI_WIRELESS" | awk -F= -v sect="wireless.${WIFI_DEV}.country=" 'index($0, sect)==1 {gsub(/'"'"'/, "", $2); print $2; exit}')
-                    [ -n "$COUNTRY_UCI" ] && COUNTRY="$COUNTRY_UCI"
-                fi
+            if [ -n "$SECTION" ] && [ "$COUNTRY" = "World" ] && [ -n "$COUNTRY_UCI" ]; then
+                COUNTRY="$COUNTRY_UCI"
             fi
+
+            case "$ENC_LIVE" in
+            *"SAE / WPA-PSK / WPA-PSK-SHA256"*) ENC_LIVE="WPA2-PSK/WPA3-SAE Mixed Mode" ;;
+            *"WPA-PSK / WPA-PSK-SHA256"*) ENC_LIVE="WPA2-PSK" ;;
+            *"SAE"*) ENC_LIVE="WPA3-SAE" ;;
+            esac
 
             OUT="${OUT}<br><br><b>${ICON} ${iface}</b><br>"
             OUT="${OUT}<i>${CHIP}</i><br>"

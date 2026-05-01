@@ -1,4 +1,4 @@
-read -r _rand < /proc/sys/kernel/random/uuid 2>/dev/null || _rand="fallback"
+read -r _rand </proc/sys/kernel/random/uuid 2>/dev/null || _rand="fallback"
 _rand="${_rand%%-*}"
 readonly SEND_RUN_DIR="/tmp/matrix_send_$$_${_rand}.d"
 
