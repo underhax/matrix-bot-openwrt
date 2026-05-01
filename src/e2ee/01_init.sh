@@ -11,18 +11,8 @@ mkdir -m 0700 "$BOT_RUN_DIR" 2>/dev/null || {
 }
 
 cleanup() {
-    trap - INT TERM EXIT
     printf '\nStopping Matrix Bot (E2EE)...\n'
-
-    rm -rf -- "$BOT_RUN_DIR" 2>/dev/null
-
-    for p in $(jobs -p); do
-        kill -TERM "$p" 2>/dev/null
-    done
-    sleep 1
-    for p in $(jobs -p); do
-        kill -0 "$p" 2>/dev/null && kill -KILL "$p" 2>/dev/null
-    done
+    core_cleanup
 
     if [ -n "${SSH_PORT:-}" ]; then
         PIDS_SSH=$(ps | awk -v p="$SSH_PORT" '/ssh/ && $0 ~ p && !/awk/ {print $1}')

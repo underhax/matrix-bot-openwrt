@@ -11,18 +11,8 @@ mkdir -m 0700 "$BOT_RUN_DIR" 2>/dev/null || {
 }
 
 cleanup() {
-    trap - INT TERM EXIT
     printf '\nStopping Matrix Bot (HTTP)...\n'
-
-    rm -rf -- "$BOT_RUN_DIR" 2>/dev/null
-
-    for p in $(jobs -p); do
-        kill -TERM "$p" 2>/dev/null
-    done
-    sleep 1
-    for p in $(jobs -p); do
-        kill -0 "$p" 2>/dev/null && kill -KILL "$p" 2>/dev/null
-    done
+    core_cleanup
 
     PIDS_CURL=$(ps w | awk '/curl/ && /_matrix/ && !/awk/ {print $1}')
     for pid in $PIDS_CURL; do [ "$pid" != "$$" ] && kill -TERM "$pid" 2>/dev/null; done

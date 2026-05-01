@@ -11,6 +11,7 @@ TMP_FILE="usr/lib/matrix/tmp_$$.sh"
 echo "🛠 Building matrix_bot (E2EE)..."
 cat src/common/00_base.sh \
     src/common/01_common.sh \
+    src/common/bot_00_cleanup.sh \
     src/e2ee/01_init.sh \
     src/common/bot_01_args.sh \
     src/common/sender_01_init.sh \
@@ -45,6 +46,7 @@ sed "s|{{SCRIPT}}|/usr/lib/matrix/matrix_bot|g; s|{{NAME}}|matrixbot|g" src/comm
 echo "🛠 Building matrix_bot_http (HTTP)..."
 cat src/common/00_base.sh \
     src/common/01_common.sh \
+    src/common/bot_00_cleanup.sh \
     src/http/01_init.sh \
     src/common/bot_01_args.sh \
     src/common/sender_01_init.sh \
