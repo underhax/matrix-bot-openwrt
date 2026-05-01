@@ -341,7 +341,7 @@ process_command() {
     "help" | "start") cmd_help "$ROOM_ID" ;;
     "uptime" | "memory" | "meminfo") cmd_sysinfo "$CMD" "$ROOM_ID" ;;
     "wan_ip") cmd_wan_ip "$ROOM_ID" ;;
-    "clients" | *"_clients") cmd_clients "$CMD" "$ROOM_ID" ;;
+    "clients" | "wifi_clients" | "wired_clients") cmd_clients "$CMD" "$ROOM_ID" ;;
     "restart" | "reload") cmd_service "$CMD" "$SAFE_ARGS" "$ROOM_ID" ;;
     "ifup" | "ifdown") cmd_iface "$CMD" "$SAFE_ARGS" "$ROOM_ID" ;;
     "wifi" | "wifi_"*) cmd_wifi "$CMD" "$ROOM_ID" ;;

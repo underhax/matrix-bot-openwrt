@@ -53,7 +53,19 @@ init_encryption_cache() {
                 break
             fi
 
-            errcode=$(extract_json "$tmp_file" '.errcode // empty' '@.errcode')
+            if [ "${FORCE_JSONFILTER:-0}" -eq 0 ] && command -v jq >/dev/null 2>&1; then
+                local _enc_out
+                _enc_out=$(jq -r '(.errcode // ""), (.algorithm // "")' "$tmp_file" 2>/dev/null)
+                {
+                    read -r errcode
+                    read -r algo
+                } <<EOF
+$_enc_out
+EOF
+            else
+                errcode=$(jsonfilter -i "$tmp_file" -e '@.errcode' 2>/dev/null)
+                algo=$(jsonfilter -i "$tmp_file" -e '@.algorithm' 2>/dev/null)
+            fi
 
             if [ "$errcode" = "M_NOT_FOUND" ]; then
                 break
@@ -66,7 +78,6 @@ init_encryption_cache() {
                 continue
             fi
 
-            algo=$(extract_json "$tmp_file" '.algorithm // empty' '@.algorithm')
             break
         done
 
