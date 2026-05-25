@@ -72,3 +72,4 @@ known_hosts
 
 *.md
 !README.md
+!.github/**/*.md
