@@ -29,7 +29,7 @@ jobs:
           luarocks install busted
 
       - name: Run Luacheck
-        run: luacheck src/
+        run: luacheck packages/matrixbot/src/ packages/luci-app-matrixbot/
 
       - name: Run Busted Tests
-        run: LUA_PATH="./src/usr/lib/lua/?.lua;;" busted tests/
+        run: LUA_PATH="./packages/matrixbot/src/usr/lib/lua/?.lua;;" busted tests/

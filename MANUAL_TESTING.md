@@ -24,8 +24,8 @@ apk add libubox-lua libubus-lua libiwinfo-lua luci-lib-nixio luasec libuci-lua l
 ## 3. Transfer Files to the Router
 You can transfer the repository files using `scp` or `rsync`. Since this is a pure Lua project, no C-compilation is needed.
 
-1. Copy the `usr` and `etc` folders (located inside `src/`) to the root of the router (`/`).
-2. Copy the `controller` and `model` folders (located inside `luci-app-matrixbot/luasrc/`) to `/usr/lib/lua/luci/`.
+1. Copy the `usr` and `etc` folders (located inside `packages/matrixbot/src/`) to the root of the router (`/`).
+2. Copy the `controller` and `model` folders (located inside `packages/luci-app-matrixbot/luasrc/`) to `/usr/lib/lua/luci/`.
 
 ## 4. Set Proper Permissions
 Permissions must be strictly locked down to ensure security on the router.
