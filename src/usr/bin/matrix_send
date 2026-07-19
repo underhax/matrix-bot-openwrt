@@ -1,0 +1,5 @@
+#!/usr/bin/env lua
+local os = require("os")
+local sender_entry = require("matrixbot.sender.entry")
+
+os.exit(sender_entry.run({ ... }))

@@ -1,39 +1,35 @@
-name: CI Tests
+name: CI Checks
 
 on:
   push:
-    branches: [ "main" ]
+    branches:
+      - main
   pull_request:
-    branches: [ "main" ]
-
-permissions:
-  contents: read
 
 jobs:
-  test:
-    name: Lint & Unit Tests
+  lint-and-test:
+    name: Lint & Test
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Checkout Repository
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
-      - name: Install dependencies
+      - name: Setup Lua
+        uses: leafo/gh-actions-lua@6919171ccf181b826f44b9bca76307b577217377 # v13.0.0
+        with:
+          luaVersion: "5.1.5"
+
+      - name: Setup Luarocks
+        uses: leafo/gh-actions-luarocks@35d062def313a7699a0d513e996bcf4352f05389 # v6.1.0
+
+      - name: Install Dependencies
         run: |
-          sudo apt-get update
-          sudo apt-get install -y shellcheck bats shfmt
+          luarocks install luacheck
+          luarocks install busted
 
-      - name: Enable OpenWrt ash bashisms compatibility
-        run: sudo ln -sf /bin/bash /bin/sh
+      - name: Run Luacheck
+        run: luacheck src/
 
-      - name: Build Artifacts
-        run: |
-          chmod +x ./build.sh
-          ./build.sh
-
-      - name: Run BATS Unit Tests
-        env:
-          BATS_SHELL: /bin/bash
-        run: |
-          echo "shopt -u patsub_replacement 2>/dev/null || true" > /tmp/compat.sh
-          BASH_ENV=/tmp/compat.sh bats tests/
+      - name: Run Busted Tests
+        run: LUA_PATH="./src/usr/lib/lua/?.lua;;" busted tests/

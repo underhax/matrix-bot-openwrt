@@ -5,24 +5,23 @@
 [![GitHub repo size](https://img.shields.io/github/repo-size/underhax/matrix-bot-openwrt)](https://github.com/underhax/matrix-bot-openwrt)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-A lightweight, POSIX shell–based Matrix bot for remote router management over the [Matrix protocol](https://matrix.org/). Designed for OpenWrt, providing a secure and efficient way to control your router from any Matrix client.
+A lightweight, native **Lua 5.1** bot for remote router management over the [Matrix protocol](https://matrix.org/). Designed specifically for OpenWrt, providing a secure, efficient, and memory-safe way to control your router from any Matrix client.
 
-**Features:**
-- Remote control via Matrix chat: services, interfaces, Wi-Fi, WOL, clients, system info
-- **Two build variants**: Choose between a high-security E2EE version (via SSH) or a lightweight HTTP-only version.
-- **Standalone Sender**: The notification scripts (`matrix_send` or `matrix_send_http`) can be used independently from the bot for any system alerts.
+**Key Features:**
+- **Native OpenWrt Integration**: Built on robust OpenWrt C-bindings (`ubus`, `uci`, `iwinfo`, `cjson`, etc.) for minimal CPU footprint, zero-allocation performance, and deep system interaction.
+- **Web UI Configuration**: Fully integrated with OpenWrt's **LuCI** web interface. Configure tokens, rooms, and services directly from your browser.
+- **Remote Control**: Monitor system metrics (uptime, RAM) and public WAN IP. Manage services (restart/reload), network interfaces (up/down), Wi-Fi radios (toggle/reload), Wake-on-LAN (WOL), and view detailed network clients (DHCP, ARP, IPv6, Wi-Fi) directly from chat.
+- **Dual Transport Architecture**: Choose between a high-security E2EE version (via SSH) or a lightweight HTTP-only version.
+- **Standalone Sender**: The CLI notification script (`matrix_send`) can be used independently in your crontabs or custom scripts to push alerts to Matrix (with auto-fallback from E2EE to HTTP).
+- **Security-First**: Unauthorized access attempts trigger instant security alerts to a dedicated Admin Room. Managed natively by `procd`.
 
-- Security alerts forwarded to a dedicated admin room on unauthorized access attempts.
-- Managed by `procd` — automatic restart on crash, logs via `logread`.
-
-**Compatibility:** Successfully tested on OpenWrt 25.12.2 (Xiaomi Mi Router 3G).
+**Compatibility:** Successfully tested on OpenWrt 25.12.4 using **Xiaomi Mi Router 3G** (and expected to work seamlessly on all newer 25.x releases).
 
 ---
 
 ## Matrix Setup
 
 ### 1. Register a bot account
-
 Register a dedicated Matrix account for the bot on your homeserver (e.g. `@mybot:matrix-example.tld`). Do **not** use your personal account.
 
 ### 2. Get an access token
@@ -40,375 +39,148 @@ wget -q -O - --header="Content-Type: application/json" \
   --post-data='{"type":"m.login.password","user":"mybot","password":"yourpassword"}' \
   "https://matrix-example.tld/_matrix/client/v3/login"
 ```
+Copy the `access_token` field from the response. It usually starts with `syt_` or `mct_`.
 
-Copy the `access_token` field from the response.
-
-**E2EE Method Note:** If you are using `matrix-commander-rs`, you can also find the token in your `credentials.json` file on the external host.
+**E2EE Method Note:** If you are using `matrix-cli`, you can also find the `access_token` in your `session.json` file on the external host.
 
 ### 3. Create rooms
-
 Create (or reuse) the following rooms in your Matrix client:
 
 | Room | Purpose | Variable |
 |---|---|---|
-| **Command rooms** | Where you send commands to the bot. Can be E2EE-encrypted or plaintext. One or more. | `MATRIX_ROOM_IDS` |
-| **Admin/alert room** | Where the bot sends security alerts (unauthorized access). Does **not** accept commands. | `MATRIX_ROOM_ADMIN` |
+| **Command rooms** | Where you send commands to the bot. Can be E2EE-encrypted or plaintext. | `rooms` |
+| **Admin Alert room** | Where the bot sends security alerts (unauthorized access). Does **not** accept commands. | `admin_room` |
 
-Invite the bot account to all rooms. Get room IDs from your client (usually under Room Settings → Advanced) — they look like `!AbCdEfGhIj:matrix-example.tld` or `!0xRqYq5IIruJFFcCLhkzepUfk5m2InboNUkXe3ZTqPs`.
+Invite the bot account to all rooms. Get room IDs from your client (usually under Room Settings → Advanced) — they look like `!AbCdEfGhIj:matrix-example.tld` or the newer domain-less format `!0xRqYq5IIruJFFcCLhkzepUfk5m2InboNUkXe3ZTqPs`.
 
 ---
 
-## Choose Your Installation Method
+## Installation
 
-Select the method that best fits your security requirements and infrastructure.
+The easiest way to install the bot is using the pre-compiled `.apk` package from GitHub Releases.
 
-<details>
-<summary><b>Method A: E2EE (Secure) - [Click to expand]</b></summary>
-
-### Overview
-Recommended for maximum privacy. Uses End-to-End Encryption (E2EE) via an SSH tunnel to an external host running [`matrix-commander-rs`](https://github.com/8go/matrix-commander-rs).
-
-### Architecture (E2EE)
-
-```
-OpenWrt Router
-│
-├── /etc/config/bot.conf          ← credentials & settings
-├── /etc/init.d/matrixbot         ← service control (start/stop/enable)
-├── /etc/matrix_bot_known_hosts   ← SSH host key store (created during setup)
-│
-└── /usr/lib/matrix/
-    ├── matrix_bot                ← E2EE listener & command handler
-    └── matrix_send               ← universal message sender (SSH first)
-```
-
-### 1. Requirements
-**On the Router:**
-
+### Option 1: Direct Package Install (Recommended)
+1. Download the latest release packages (`matrixbot.apk` and `luci-app-matrixbot.apk`) from the [Releases page](https://github.com/underhax/matrix-bot-openwrt/releases).
+2. Transfer them to your router (e.g. via `scp` into `/tmp/`).
+3. Install via `apk` (OpenWrt 25.x):
 ```sh
-apk update && apk add curl jq openssh-client
+apk update
+apk add --allow-untrusted /tmp/matrixbot.apk /tmp/luci-app-matrixbot.apk
 ```
 
-| Package | Purpose |
-|---|---|
-| `curl` | **(Preferred)** Robust HTTP transport for credential passing (fallback: built-in `wget`). |
-| `jq` | **(Preferred)** Reliable JSON parsing (fallback: built-in `jsonfilter`). |
-| `openssh-client` | **Required** for the SSH tunnel. SSH transport to the E2EE host running `matrix-commander-rs` |
+*(In the future, a dedicated custom APK repository will be provided for seamless `apk update` integrations).*
 
-> `wget` and `jsonfilter` are included in OpenWrt by default and are used automatically if `curl` or `jq` is not installed. `curl` and `jq` are strongly recommended for correctness and security.
-
-For Wake-on-LAN support:
-
-```sh
-apk add etherwake
-```
-
-For Nginx reload support — Nginx must already be installed:
-
-```sh
-apk add nginx
-```
-
-**External Host:**
-- Any external host (VPS, Raspberry Pi, Home Server, and similar).
-- [`matrix-commander-rs`](https://github.com/8go/matrix-commander-rs) installed and **already logged in** to your **bot Matrix account**.
-- A dedicated SSH key pair for the bot (see **SSH Key Setup** bellow)
-- **Recommended Setup**: Use the [**matrix-commander-rs-gateway**](https://github.com/underhax/matrix-commander-rs-gateway) Docker container.
-
-### 2. Installation
-
-```sh
-mkdir -p /usr/lib/matrix
-# Download Bot, Universal Sender, and Init script
-curl -sSL "https://raw.githubusercontent.com/underhax/matrix-bot-openwrt/refs/tags/v1.1.0/usr/lib/matrix/matrix_bot" -o /usr/lib/matrix/matrix_bot
-curl -sSL "https://raw.githubusercontent.com/underhax/matrix-bot-openwrt/refs/tags/v1.1.0/usr/lib/matrix/matrix_send" -o /usr/lib/matrix/matrix_send
-curl -sSL "https://raw.githubusercontent.com/underhax/matrix-bot-openwrt/refs/tags/v1.1.0/etc/init.d/matrixbot" -o /etc/init.d/matrixbot
-
-# Set permissions
-chmod 500 /usr/lib/matrix/matrix_*
-chmod 500 /etc/init.d/matrixbot
-```
-
-### 3. SSH Key Setup
-Generate a dedicated key pair on the router:
-
-```sh
-mkdir -p /root/.ssh
-ssh-keygen -t ed25519 -f /root/.ssh/router-matrix -N "" -C "matrix-bot@openwrt"
-chmod 400 /root/.ssh/router-matrix
-cat /root/.ssh/router-matrix.pub
-```
-
-Copy the public key to the external host (`~/.ssh/authorized_keys`).
-
-Register the remote host key (run once — uses your config values):
-
-```sh
-. /etc/config/bot.conf && \
-ssh -i "$SSH_KEY" -p "$SSH_PORT" \
-    -o StrictHostKeyChecking=accept-new \
-    -o UserKnownHostsFile=/etc/matrix_bot_known_hosts \
-    -o BatchMode=yes \
-    -o ConnectTimeout=10 \
-    "$SSH_USER@$SSH_HOST" exit 2>&1 && \
-echo "Host key saved." && chmod 600 /etc/matrix_bot_known_hosts && cat /etc/matrix_bot_known_hosts
-```
-
-This stores the host key in `/etc/matrix_bot_known_hosts`. The bot uses `StrictHostKeyChecking=yes` against this file — MITM attacks will be rejected.
-
-### 4. Finalize
-Edit `/etc/config/bot.conf` — see [Configuration](#configuration) below.
-
-Enable and start the service:
-
-```sh
-/etc/init.d/matrixbot enable
-/etc/init.d/matrixbot start
-```
-</details>
-
-<details>
-<summary><b>Method B: HTTP (Simple) - [Click to expand]</b></summary>
-
-### Overview
-Designed for simplicity. Communicates directly with the Matrix API. Best for unencrypted rooms, quick setups, or when you cannot maintain an external host. Similar to a Telegram bot experience.
-
-### Architecture (HTTP)
-```
-OpenWrt Router
-│
-├── /etc/config/bot.conf          ← credentials & settings
-├── /etc/init.d/matrixbot_http    ← service control
-│
-└── /usr/lib/matrix/
-    ├── matrix_bot_http           ← HTTP polling listener & handler
-    └── matrix_send_http          ← message sender (direct HTTP)
-```
-
-### 1. Requirements
-**On the Router:**
-```sh
-apk update && apk add curl jq
-```
-
-| Package | Purpose |
-|---|---|
-| `curl` | **(Preferred)** Robust HTTP transport for credential passing (fallback: built-in `wget`). |
-| `jq` | **(Preferred)** Reliable JSON parsing (fallback: built-in `jsonfilter`). |
-
-> `wget` and `jsonfilter` are included in OpenWrt by default and are used automatically if `curl` or `jq` is not installed. `curl` and `jq` are strongly recommended for correctness and security.
-
-For Wake-on-LAN support:
-
-```sh
-apk add etherwake
-```
-
-For Nginx reload support — Nginx must already be installed:
-
-```sh
-apk add nginx
-```
-
-### 2. Installation
-```sh
-mkdir -p /usr/lib/matrix
-# Download HTTP Bot, Pure HTTP Sender, and Init script
-curl -sSL "https://raw.githubusercontent.com/underhax/matrix-bot-openwrt/refs/tags/v1.1.0/usr/lib/matrix/matrix_bot_http" -o /usr/lib/matrix/matrix_bot_http
-curl -sSL "https://raw.githubusercontent.com/underhax/matrix-bot-openwrt/refs/tags/v1.1.0/usr/lib/matrix/matrix_send_http" -o /usr/lib/matrix/matrix_send_http
-curl -sSL "https://raw.githubusercontent.com/underhax/matrix-bot-openwrt/refs/tags/v1.1.0/etc/init.d/matrixbot_http" -o /etc/init.d/matrixbot_http
-
-# Set permissions
-chmod 500 /usr/lib/matrix/matrix_*
-chmod 500 /etc/init.d/matrixbot_http
-```
-
-### 3. Finalize
-Edit `/etc/config/bot.conf` — see [Configuration](#configuration) below.
-
-Enable and start the service:
-
-```sh
-/etc/init.d/matrixbot_http enable
-/etc/init.d/matrixbot_http start
-```
-</details>
+### Option 2: Build from Source & Manual Testing
+If you are a developer or want to test the latest `main` branch, refer to our detailed [**Manual Testing Guide**](MANUAL_TESTING.md).
 
 ---
 
 ## Configuration
 
-All settings live in `/etc/config/bot.conf`. Create it and set strictly root-only permissions:
-```sh
-touch /etc/config/bot.conf
-chmod 400 /etc/config/bot.conf
-```
+The recommended way to configure the bot is through the OpenWrt Web GUI.
 
-### Configuration Template
-```sh
-# /etc/config/bot.conf
-# Permissions must be 400 (chmod 400 /etc/config/bot.conf)
+1. Open your router's LuCI web interface in your browser.
+2. Navigate to **Services → Matrix Bot**.
+3. Fill in your Matrix URL, Access Token, Bot User, Admin User, and Room IDs.
+4. If using **E2EE**, enable it and provide your SSH credentials.
+5. Configure optional features such as **Allowed Services** (for the `restart` command), **WOL PC MAC**, **WOL Interfaces**, and Wi-Fi preferences (**Detailed WiFi Output** and **Show WiFi Key**).
+6. Click **Save & Apply**. The `procd` daemon will automatically reload the bot with the new settings.
 
-# =====================
-# Matrix (Required for both)
-# =====================
-
-# Base URL of your Matrix homeserver (no trailing slash)
-MATRIX_URL='https://matrix-example.tld'
-
-# Space-separated list of room IDs where the bot accepts commands.
-MATRIX_ROOM_IDS='!AbCdEfGhIj:matrix-example.tld !0xRqYq5IIruJFFcCLhkzepUfk5m2InboNUkXe3ZTqPs'
-
-# Admin/alert room: bot sends security warnings here. NOT a command room.
-MATRIX_ROOM_ADMIN='!UvWxYzAbCd:matrix-example.tld'
-
-# Full Matrix user ID of the bot account (must be invited to all rooms above)
-MATRIX_BOT_USER='@mybot:matrix-example.tld'
-# Full Matrix user ID of the admin (the only user whose commands are accepted)
-MATRIX_ADMIN_USER='@me:matrix-example.com'
-
-# Access token (from login response or from matrix-commander-rs credentials.json)
-MATRIX_ACCESS_TOKEN='syt_XXXXXXXXXXXXXXXXXXXXXXXX'
-
-# =====================
-# SSH (Required for E2EE Method)
-# =====================
-
-# Hostname or IP of the machine running matrix-commander-rs
-SSH_HOST='192.168.1.100'
-SSH_PORT='22'
-SSH_USER='myuser'
-# Path to the private key generated during setup
-SSH_KEY='/root/.ssh/router-matrix'
-
-# =====================
-# Wi-Fi display
-# =====================
-
-# Set to 1 for detailed Wi-Fi info (hardware, BSSID, signal, TX power, etc.)
-# Set to 0 or leave empty for simple mode (SSID, channel, rate, key)
-WIFI_DETAILED=0
-
-# Set to 1 to reveal Wi-Fi passwords in plaintext in chat outputs.
-# Set to 0 or leave empty to mask passwords (e.g. ********) for security.
-WIFI_SHOW_KEY=0
-
-# =====================
-# Service control
-# =====================
-
-# Space-separated whitelist of services allowed to be restarted via 'restart' command.
-# Only services in this list AND present in /etc/init.d/ can be restarted.
-# Default (used if this variable is absent): dnsmasq firewall network odhcpd cron uhttpd
-SVC_WANTED='dnsmasq firewall network odhcpd cron uhttpd nginx'
-
-# =====================
-# Wake-on-LAN
-# =====================
-
-# Optional: List of interfaces for WOL broadcasting (defaults to br-lan if empty)
-# WOL_INTERFACES="br-lan br-guest"
-
-# MAC address of a specific machine to wake with the 'wol_pc' command (optional)
-MAC_PC='AA:BB:CC:DD:EE:FF'
-```
+*Alternatively, you can edit `/etc/config/matrixbot` manually via SSH and run `service matrixbot reload`.*
 
 ---
 
-## Usage
+## Transport Methods
 
-Once the bot is running and invited to your rooms, send commands as `MATRIX_ADMIN_USER` in the command room.
+### Method A: E2EE (Maximum Security)
+Recommended for privacy. Uses End-to-End Encryption (E2EE) via an SSH tunnel to an external host running [`matrix-cli`](https://github.com/underhax/matrix-cli).
+- **External Host**: A VPS, Raspberry Pi, or Docker container running `matrix-cli` logged into the bot account.
+- **Key Setup**: Generate an SSH key on your router (`ssh-keygen -t ed25519 -f /root/.ssh/router-matrix`) and add the public key to your external host.
+- **Verification**: After configuring the bot in LuCI, you must save the remote host's signature securely before enabling the service:
+  ```sh
+  ssh -i "$(uci -q get matrixbot.e2ee.ssh_key)" -p "$(uci -q get matrixbot.e2ee.ssh_port)" \
+      -o StrictHostKeyChecking=accept-new \
+      -o UserKnownHostsFile=/etc/matrix_bot_known_hosts \
+      -o BatchMode=yes \
+      -o ConnectTimeout=10 \
+      "$(uci -q get matrixbot.e2ee.ssh_user)@$(uci -q get matrixbot.e2ee.ssh_host)" exit 2>&1 && \
+  printf "Host key saved.\n" && chmod 600 /etc/matrix_bot_known_hosts
+  ```
 
-### Quick start
+### Method B: HTTP (Simple)
+Communicates directly with the Matrix API. Best for unencrypted rooms or when you cannot maintain an external host.
+- No external host required.
+- The Matrix access token is passed securely in memory to native transports, preventing credential leaks in process lists.
+
+---
+
+## Usage & Commands
+
+Once the bot is running and invited to your rooms, send commands as the **Admin User** in the command room.
+
 Send `help` or `start` to get the full command list from the bot itself.
 
-### Command reference
+### Command Reference
 
-#### System info
-| Command | Description |
-|---|---|
-| `uptime` | Router uptime and load average |
-| `memory` | RAM usage in MB (total / used / free) |
-| `meminfo` | Detailed `/proc/meminfo` (first 5 entries) |
-| `wan_ip` | Public WAN IP address (queries external services with local fallback) |
-
-#### Network clients
-| Command | Description |
-|---|---|
-| `clients` | Full network report: all Wi-Fi + wired clients |
-| `wifi_clients` | Wi-Fi associated clients (IP, IPv6, MAC, signal, hostname) |
-| `wired_clients` | Wired LAN clients from ARP table (excluding Wi-Fi MACs) |
-
-#### Service management
-| Command | Description |
-|---|---|
-| `restart <service>` | Restart a service from the whitelist (e.g. `restart dnsmasq`) |
-| `reload nginx` | Test Nginx config, then reload if valid |
-
-#### Network interfaces
-| Command | Description |
-|---|---|
-| `ifup <iface>` | Bring up a UCI-defined network interface (e.g. `ifup wan`) |
-| `ifdown <iface>` | Bring down a UCI-defined network interface |
-
-#### Wi-Fi control
-| Command | Description |
-|---|---|
-| `wifi` / `wifi_info` | Wi-Fi status (SSID, encryption, channel, rate, key) |
-| `wifi_up_2_4` / `wifi_down_2_4` | Enable/Disable 2.4 GHz radio (radio0) |
-| `wifi_up_5` / `wifi_down_5` | Enable/Disable 5 GHz radio (radio1) |
-| `wifi_reload_2_4` / `wifi_reload_5` | Reload radio configuration |
-
-#### Wake-on-LAN
-| Command | Description |
-|---|---|
-| `wol <MAC>` | Send WOL magic packet to any MAC (format: `AA:BB:CC:DD:EE:FF`) |
-| `wol_pc` | Send WOL magic packet to `MAC_PC` from config |
+| Category | Command | Description |
+|---|---|---|
+| **System** | `uptime` | Router uptime and load average |
+| | `memory` | RAM usage in MB (total / used / free) |
+| | `meminfo` | Detailed `/proc/meminfo` |
+| | `wan_ip` | Public WAN IP address (multi-fallback resolution) |
+| **Network** | `clients` | Full network report: Wi-Fi + wired clients |
+| | `wifi_clients` | Wi-Fi associated clients |
+| | `wired_clients` | Wired LAN clients |
+| **Services** | `restart <service>` | Restart a whitelisted service (e.g. `restart dnsmasq`) |
+| | `reload nginx` | Test Nginx config, then reload if valid |
+| **Interfaces**| `ifup <iface>` | Bring up a UCI interface (e.g. `ifup wan`) |
+| | `ifdown <iface>` | Bring down a UCI interface |
+| **Wi-Fi** | `wifi` / `wifi_info` | Wi-Fi information |
+| | `wifi_up_2_4` / `wifi_down_2_4` | Enable/Disable 2.4 GHz radio (radio0) |
+| | `wifi_up_5` / `wifi_down_5` | Enable/Disable 5 GHz radio (radio1) |
+| | `wifi_reload_2_4` / `wifi_reload_5` | Reload 2.4 GHz or 5 GHz radio |
+| **WOL** | `wol <MAC>` | Send WOL magic packet to any MAC (format: `AA:BB:CC:DD:EE:FF`) |
+| | `wol_pc` | Send WOL magic packet to pre-configured PC |
 
 ---
 
-## Standalone Usage
-The sending scripts can be used independently for your own system alerts or crontab notifications.
+## Standalone Sender
 
-**Universal Sender (`matrix_send`):**
-Tries SSH (E2EE) first, falls back to HTTP if the tunnel is down.
+The CLI script can be used independently for your own system alerts or crontab notifications.
+
+**Auto-Fallback (E2EE → HTTP):**
 ```sh
-/usr/lib/matrix/matrix_send --room-id '!RoomID:server.tld' 'Alert: WAN link is down!'
+/usr/bin/matrix_send --room-id '!RoomID:server.tld' 'Alert: WAN link is down!'
 ```
+*Note: You can force a transport by passing `--ssh-only` or `--http-only`.*
 
-**Pure HTTP Sender (`matrix_send_http`):**
-Direct HTTP only, no SSH overhead.
+**Example: OpenWrt Hotplug Script (`/etc/hotplug.d/iface/97-get_ip`)**
 ```sh
-/usr/lib/matrix/matrix_send_http --room-id '!RoomID:server.tld' 'Backup successful.'
+#!/bin/sh
+# Send a Matrix notification when the WAN interface comes up
+# ipv4=$(ifstatus wan | jsonfilter -e '@["ipv4-address"][0].address')
+
+[ "$ACTION" = "ifup" -a "$INTERFACE" = "wan" ] && {
+    (
+        sleep 30
+        ipv4=$(curl --interface "$INTERFACE" -s 4.ipquail.com/ip)
+        /usr/bin/matrix_send "<b>WAN is UP</b> <br>IPv4: <code>$ipv4</code>"
+    ) &
+}
+exit 0
 ```
 
 ---
 
 ## Security Model
-- **Process Isolation**: You only run the code necessary for your chosen transport. E2EE build physically lacks HTTP polling logic.
-- **Single admin**: only `MATRIX_ADMIN_USER` can issue commands. Any other sender triggers an alert to `MATRIX_ROOM_ADMIN`.
-- **Room whitelist**: events from any room not listed in `MATRIX_ROOM_IDS` are silently dropped.
-- **Service whitelist**: only services in `SVC_WANTED` can be restarted. Service names are validated against `[a-zA-Z0-9_-]` before use.
-- **Input sanitization**: all command arguments are strictly filtered using native shell whitelisting to block shell metacharacters and injection attempts.
-- **SSH host verification**: `StrictHostKeyChecking=yes` with a dedicated `known_hosts` file.
-- **Credential Protection**: When using HTTP transport (directly or as fallback), the Matrix access token is passed via secure `chmod 400` memory files to `curl -K` rather than on the command line.
-
----
-
-## File Permissions Summary
-| Path | Owner | Mode | Notes |
-|---|---|---|---|
-| `/usr/lib/matrix/matrix_bot*` | root | `500` | Bot executables |
-| `/usr/lib/matrix/matrix_send*` | root | `500` | Message senders |
-| `/etc/init.d/matrixbot*` | root | `500` | procd init scripts |
-| `/etc/config/bot.conf` | root | `400` | Credentials — strictly root-only |
-| `/root/.ssh/router-matrix` | root | `400` | SSH private key |
-| `/etc/matrix_bot_known_hosts` | root | `600` | SSH host key store |
+- **Process Isolation**: Native Lua modules are loaded dynamically. No slow shell `fork()` calls.
+- **Single admin**: only `Admin User` can issue commands. Any other sender triggers an immediate alert to the `Admin Alert Room`.
+- **Strict Validation**: Service names, network interface names, MAC addresses, IP addresses, domains, ports, Matrix User IDs, tokens, and Room IDs are all validated against strict Lua patterns before execution, entirely preventing command injection.
+- **SSH Verification**: SSH Verification: Enforces StrictHostKeyChecking=yes with a dedicated known_hosts file. Strict owner/mode checks (chmod 600/400) on SSH keys prevent MITM attacks.
 
 ---
 
 ## Troubleshooting
-- **Logs**: Use `logread -f -e matrix` to view real-time activity.
-- **Debug**: Run the bot script with the `-d` flag (e.g., `/usr/lib/matrix/matrix_bot -d`).
-- **E2EE**: Verify SSH connectivity manually before starting the service.
-- **HTTP**: Ensure `curl` (or `wget`) is working and the access token is valid.
+- **Logs**: View real-time activity via OpenWrt's system log: `logread -e matrixbot -f`.
+- **Debug Mode**: Enable "Debug Logging" in LuCI (or set `option debug '1'` in `/etc/config/matrixbot`) to see verbose HTTP payloads, JSON parsing errors, and UBUS debugging output.
+- **E2EE Checks**: If E2EE fails, manually verify SSH connectivity from the router to your `matrix-cli` host using the key defined in LuCI.

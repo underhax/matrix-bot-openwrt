@@ -1,4 +1,0 @@
-init_encryption_cache
-
-listen_e2ee &
-wait

@@ -1,0 +1,44 @@
+name: Build OpenWrt Package
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - 'v*'
+  pull_request:
+
+jobs:
+  build:
+    name: Build OpenWrt APK
+    runs-on: ubuntu-latest
+    
+    strategy:
+      matrix:
+        arch: [x86_64]
+        version: ["25.12"]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Set Package Version
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          VERSION=${GITHUB_REF_NAME#v}
+          sed -i "s/^PKG_VERSION:=.*/PKG_VERSION:=$VERSION/" Makefile
+          sed -i "s/^PKG_VERSION:=.*/PKG_VERSION:=$VERSION/" luci-app-matrixbot/Makefile
+
+      - name: Build Package
+        uses: openwrt/gh-action-sdk@7fc2640243284ecc44f4a9c3f749a61746ee02cb # v11
+        env:
+          ARCH: ${{ matrix.arch }}-${{ matrix.version }}
+          FEED_DIR: ${{ github.workspace }}
+          PACKAGES: matrix-bot-openwrt luci-app-matrixbot
+          NO_SHFMT_CHECK: 1
+      
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: openwrt-packages
+          path: bin/packages/**/*.apk

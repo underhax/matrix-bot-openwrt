@@ -1,75 +1,45 @@
-# ==============================================================================
-# OS Generated Files
-# ==============================================================================
-# macOS
-.DS_Store
-.AppleDouble
-.LSOverride
-._*
-.Spotlight-V100
-.Trashes
-Volumes/
-.TemporaryItems
+# Compiled Lua sources
+luac.out
 
-# Ubuntu / Linux
-*~
-.fuse_hidden*
-.directory
-.Trash-*
-.nfs*
+# luarocks build files
+*.src.rock
+*.zip
+*.tar.gz
 
-# ==============================================================================
-# Editor & IDE specific
-# ==============================================================================
-# VS Code
-.vscode/*
-!.vscode/settings.json
-!.vscode/tasks.json
-!.vscode/launch.json
-!.vscode/extensions.json
+# Object files
+*.o
+*.os
+*.ko
+*.obj
+*.elf
 
-# Vim / Emacs
-*.swp
-*.swo
-*~
-\#*\#
-/.emacs.desktop
-/.emacs.desktop.lock
-*.elc
-auto-save-list
-conf-notes.txt
+# Precompiled Headers
+*.gch
+*.pch
 
-# JetBrains (IntelliJ, PyCharm, etc.)
-.idea/
+# Libraries
+*.lib
+*.a
+*.la
+*.lo
+*.def
+*.exp
 
-# ==============================================================================
-# Project Specific (Secrets & Security) - CRITICAL
-# ==============================================================================
-# Never commit your configuration file containing tokens
-bot.conf
-/etc/config/bot.conf
+# Shared objects (inc. Windows DLLs)
+*.dll
+*.so
+*.so.*
+*.dylib
 
-# Private SSH keys used for E2EE transport
-id_ed25519
-id_ed25519.pub
-/etc/matrix_bot/
-
-# Host verification files
-matrix_bot_known_hosts
-known_hosts
-
-# ==============================================================================
-# Logs and Runtime Data
-# ==============================================================================
-*.log
-/tmp/matrix_send.log
-/tmp/sync_*
-/tmp/evt_*
-/tmp/ssh_evt_*
-/tmp/enc_check_*
-/tmp/mhdr_*
-/tmp/matrix_next_batch*
+# Executables
+*.exe
+*.out
+*.app
+*.i*86
+*.x86_64
+*.hex
 
 *.md
 !README.md
+!MANUAL_TESTING.md
 !.github/**/*.md

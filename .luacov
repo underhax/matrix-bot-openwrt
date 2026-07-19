@@ -1,0 +1,6 @@
+return {
+  exclude = {
+    "%.lua_env",
+    "tests",
+  }
+}

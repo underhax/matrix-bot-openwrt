@@ -1,0 +1,42 @@
+{
+  "runtime": {
+    "version": "Lua 5.1"
+  },
+  "diagnostics": {
+    "globals": [
+      "nixio",
+      "luci",
+      "entry",
+      "cbi",
+      "_",
+      "translate",
+      "Map",
+      "NamedSection",
+      "Value",
+      "DummyValue",
+      "DynamicList",
+      "Flag",
+      "module",
+      "package",
+      "index",
+      "ubus",
+      "cjson",
+      "describe",
+      "it",
+      "before_each",
+      "after_each",
+      "setup",
+      "teardown",
+      "assert",
+      "spy",
+      "mock",
+      "stub"
+    ]
+  },
+  "workspace": {
+    "library": [
+      ".meta/openwrt"
+    ],
+    "checkThirdParty": false
+  }
+}
