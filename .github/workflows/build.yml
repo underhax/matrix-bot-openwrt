@@ -43,7 +43,9 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: openwrt-packages
-          path: bin/packages/**/*.apk
+          path: |
+            bin/packages/**/matrixbot-*.apk
+            bin/packages/**/luci-app-matrixbot-*.apk
 
   release:
     name: Create GitHub Release
@@ -64,4 +66,6 @@ jobs:
         with:
           generate_release_notes: true
           prerelease: ${{ contains(github.ref_name, '-') }}
-          files: release_assets/**/*.apk
+          files: |
+            release_assets/**/matrixbot-*.apk
+            release_assets/**/luci-app-matrixbot-*.apk
