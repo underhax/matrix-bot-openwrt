@@ -1,7 +1,7 @@
 include $(TOPDIR)/rules.mk
 
-PKG_NAME:=matrix-bot-openwrt
-PKG_VERSION:=dev
+PKG_NAME:=matrixbot
+PKG_VERSION:=0.0.1
 PKG_RELEASE:=1
 
 PKG_MAINTAINER:=underhax
@@ -9,7 +9,7 @@ PKG_LICENSE:=MIT
 
 include $(INCLUDE_DIR)/package.mk
 
-define Package/matrix-bot-openwrt
+define Package/matrixbot
   SECTION:=net
   CATEGORY:=Network
   TITLE:=Matrix Bot for OpenWrt
@@ -17,14 +17,14 @@ define Package/matrix-bot-openwrt
   PKGARCH:=all
 endef
 
-define Package/matrix-bot-openwrt/description
+define Package/matrixbot/description
   A lightweight, native Lua 5.1 Matrix bot for remote router management.
 endef
 
 define Build/Compile
 endef
 
-define Package/matrix-bot-openwrt/install
+define Package/matrixbot/install
 	$(INSTALL_DIR) $(1)/usr/lib/lua/matrixbot
 	$(CP) ./src/usr/lib/lua/matrixbot/* $(1)/usr/lib/lua/matrixbot/
 	
@@ -38,4 +38,4 @@ define Package/matrix-bot-openwrt/install
 	$(INSTALL_CONF) ./src/etc/config/matrixbot $(1)/etc/config/matrixbot
 endef
 
-$(eval $(call BuildPackage,matrix-bot-openwrt))
+$(eval $(call BuildPackage,matrixbot))

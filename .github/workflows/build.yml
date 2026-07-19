@@ -35,7 +35,7 @@ jobs:
         env:
           ARCH: ${{ matrix.arch }}-${{ matrix.version }}
           FEED_DIR: ${{ github.workspace }}
-          PACKAGES: matrix-bot-openwrt luci-app-matrixbot
+          PACKAGES: matrixbot luci-app-matrixbot
           NO_SHFMT_CHECK: 1
 
       - name: Upload Artifacts
