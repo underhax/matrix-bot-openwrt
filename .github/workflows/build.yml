@@ -53,9 +53,6 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout Code
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
-
       - name: Download Unsigned Artifacts
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
@@ -71,11 +68,11 @@ jobs:
         run: |
           docker run --rm -v ${{ github.workspace }}:/workspace \
             -e APK_PRIVATE_KEY="${{ secrets.APK_PRIVATE_KEY }}" \
-            alpine:latest sh -c '
+            alpine:edge sh -c '
               set -e
               echo "$APK_PRIVATE_KEY" > /tmp/repo.rsa
               cd /workspace/to_sign
-              /workspace/.github/tools/apk mkndx \
+              apk mkndx \
                 --allow-untrusted \
                 --sign-key /tmp/repo.rsa \
                 --output packages.adb \
