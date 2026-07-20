@@ -142,9 +142,10 @@ wget -q "https://github.com/underhax/matrix-bot-openwrt/releases/download/${TAG}
 
 Once the files are in `/tmp`, connect to your router via SSH (if you haven't already) and run the following to install and clean up:
 ```sh
+wget -qO /etc/apk/keys/underhax-owrt.rsa.pub https://underhax.github.io/matrix-bot-openwrt/underhax-owrt.rsa.pub
 apk update && \
 cd /tmp && \
-apk add --allow-untrusted matrixbot-*.apk luci-app-matrixbot-*.apk && \
+apk add matrixbot-*.apk luci-app-matrixbot-*.apk && \
 rm -f matrixbot-*.apk luci-app-matrixbot-*.apk
 ```
 </details>
