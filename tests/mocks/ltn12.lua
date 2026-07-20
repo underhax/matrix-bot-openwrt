@@ -1,7 +1,7 @@
 local mock = {}
 mock.sink = {
     table = function(t)
-        return function(chunk, err)
+        return function(chunk, _err)
             if chunk then
                 table.insert(t, chunk)
             end

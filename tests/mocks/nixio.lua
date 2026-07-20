@@ -43,7 +43,7 @@ mock.nanosleep = function(sec, nsec)
 end
 
 mock.process = {}
-mock.socket = function(domain, type)
+mock.socket = function(_domain, _type)
     return {
         setopt = function()
             return true
@@ -115,7 +115,7 @@ mock.fs = {
             return nil
         end
     end,
-    access = function(path, mode)
+    access = function(_path, _mode)
         return false
     end,
     stat = function(path)

@@ -48,7 +48,7 @@ mock.reset()
 
 function mock.cursor()
     return {
-        get = function(self, config, section, option)
+        get = function(_self, config, section, option)
             local config_data = mock.data[config]
             if not config_data then
                 return nil
@@ -67,7 +67,7 @@ function mock.cursor()
             end
             return nil
         end,
-        get_all = function(self, config, section)
+        get_all = function(_self, config, section)
             local config_data = mock.data[config]
             if not config_data then
                 return nil
@@ -80,7 +80,7 @@ function mock.cursor()
 
             return clone(section_data)
         end,
-        foreach = function(self, config, section_type, func)
+        foreach = function(_self, config, section_type, func)
             if config == "network" and section_type == "device" then
                 func({ type = "bridge", name = "br-lan" })
             elseif config == "dhcp" and section_type == "host" then

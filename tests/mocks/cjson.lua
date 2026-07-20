@@ -16,7 +16,7 @@ function mock.decode(str)
     return { success = true }
 end
 
-function mock.encode(t)
+function mock.encode(_t)
     return '{"dummy":"json"}'
 end
 

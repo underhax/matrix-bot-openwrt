@@ -22,26 +22,44 @@ A lightweight, native **Lua 5.1** bot for remote router management over the [Mat
 ## Matrix Setup
 
 ### 1. Register a bot account
-Register a dedicated Matrix account for the bot on your homeserver (e.g. `@mybot:matrix-example.tld`). Do **not** use your personal account.
+Register a dedicated Matrix account for the bot on your homeserver (e.g. `@matrixbot:your-matrix-domain.tld`). Do **not** use your personal account.
 
-### 2. Get an access token
+### Obtaining an Access Token
 
-Log in to the bot account and retrieve its access token:
+If you don't have an access token for your bot account, you can generate one using `curl` or `wget` from any terminal.
+
+> [!TIP]
+> Unsure about your Matrix API URL?
+> <br />Replace `your-matrix-domain.tld` with the domain from your `@matrixbot:your-matrix-domain.tld` ID.
+> <br />Open `https://your-matrix-domain.tld/.well-known/matrix/client` in a browser and copy the `base_url`.
+
+Set your credentials as environment variables *(remember to replace the placeholders with your actual values)*:
 
 ```sh
-# Using curl:
-curl -s -X POST "https://matrix-example.tld/_matrix/client/v3/login" \
-  -H "Content-Type: application/json" \
-  -d '{"type":"m.login.password","user":"mybot","password":"yourpassword"}'
+MATRIX_URL='https://synapse.your-matrix-domain.tld'
+BOT_USER='@matrixbot:your-matrix-domain.tld'
+BOT_PASS='Ch4nge-Th1s_BotPa$sw0rd!'
+```
 
-# Or using wget:
+Then run one of the following commands:
+
+**Using curl:**
+```sh
+curl -s -X POST "${MATRIX_URL}/_matrix/client/v3/login" \
+  -H "Content-Type: application/json" \
+  -d "{\"type\":\"m.login.password\",\"user\":\"${BOT_USER}\",\"password\":\"${BOT_PASS}\"}"
+```
+
+**Or using wget:**
+```sh
 wget -q -O - --header="Content-Type: application/json" \
-  --post-data='{"type":"m.login.password","user":"mybot","password":"yourpassword"}' \
-  "https://matrix-example.tld/_matrix/client/v3/login"
+  --post-data="{\"type\":\"m.login.password\",\"user\":\"${BOT_USER}\",\"password\":\"${BOT_PASS}\"}" \
+  "${MATRIX_URL}/_matrix/client/v3/login"
 ```
 Copy the `access_token` field from the response. It usually starts with `syt_` or `mct_`.
 
-**E2EE Method Note:** If you are using `matrix-cli`, you can also find the `access_token` in your `session.json` file on the external host.
+> [!NOTE]
+> **E2EE Method:** If you are using [`matrix-cli`](https://github.com/underhax/matrix-cli#usage), you can also find the `access_token` in your `session.json` file on the external host.
 
 ### 3. Create rooms
 Create (or reuse) the following rooms in your Matrix client:
@@ -59,13 +77,45 @@ Invite the bot account to all rooms. Get room IDs from your client (usually unde
 
 The easiest way to install the bot is using the pre-compiled `.apk` package from GitHub Releases.
 
-### Option 1: Direct Package Install (Recommended)
-1. Download the latest release packages (`matrixbot.apk` and `luci-app-matrixbot.apk`) from the [Releases page](https://github.com/underhax/matrix-bot-openwrt/releases).
-2. Transfer them to your router (e.g. via `scp` into `/tmp/`).
-3. Install via `apk` (OpenWrt 25.x):
+### Option 1: Direct Package Install
+
+To install the packages, you need to get them into your router's `/tmp` directory and then run the installation commands via SSH.
+You can either connect via SSH immediately and download them directly from the router (Method A), or download them manually to your PC and transfer them via `scp` (Method B).
+
+#### Step 1: Download Packages
+
+**Method A: Download directly from the router**
+Connect to your router via SSH and choose either `curl` (recommended if installed) or `wget`.
+*Note: The default `wget` on a bare OpenWrt installation might fail to download from GitHub due to missing HTTPS/SSL certificates. If it fails, install `wget-ssl`.*
+
+**Using curl:**
 ```sh
-apk update
-apk add --allow-untrusted /tmp/matrixbot.apk /tmp/luci-app-matrixbot.apk
+cd /tmp && \
+TAG=$(curl -sSL "https://api.github.com/repos/underhax/matrix-bot-openwrt/releases/latest" | grep '"tag_name":' | head -n 1 | awk -F'"' '{print $4}') && \
+curl -sSL -O "https://github.com/underhax/matrix-bot-openwrt/releases/download/${TAG}/matrixbot-${TAG#v}-r1.apk" && \
+curl -sSL -O "https://github.com/underhax/matrix-bot-openwrt/releases/download/${TAG}/luci-app-matrixbot-${TAG#v}-r1.apk"
+```
+
+**Or using wget:**
+```sh
+cd /tmp && \
+TAG=$(wget -qO- "https://api.github.com/repos/underhax/matrix-bot-openwrt/releases/latest" | grep '"tag_name":' | head -n 1 | awk -F'"' '{print $4}') && \
+wget -q "https://github.com/underhax/matrix-bot-openwrt/releases/download/${TAG}/matrixbot-${TAG#v}-r1.apk" && \
+wget -q "https://github.com/underhax/matrix-bot-openwrt/releases/download/${TAG}/luci-app-matrixbot-${TAG#v}-r1.apk"
+```
+
+**Method B: Manual Download & SCP**
+1. Download the latest release packages (`matrixbot-*.apk` and `luci-app-matrixbot-*.apk`) to your computer from the [Releases page](https://github.com/underhax/matrix-bot-openwrt/releases).
+2. Transfer them to your router (e.g. via `scp` into `/tmp/`).
+
+#### Step 2: Install via SSH
+
+Once the files are in `/tmp`, connect to your router via SSH (if you haven't already) and run the following to install and clean up:
+```sh
+apk update && \
+cd /tmp && \
+apk add --allow-untrusted matrixbot-*.apk luci-app-matrixbot-*.apk && \
+rm -f matrixbot-*.apk luci-app-matrixbot-*.apk
 ```
 
 *(In the future, a dedicated custom APK repository will be provided for seamless `apk update` integrations).*
@@ -79,9 +129,9 @@ If you are a developer or want to test the latest `main` branch, refer to our de
 
 The recommended way to configure the bot is through the OpenWrt Web GUI.
 
-1. Open your router's LuCI web interface in your browser.
+1. Open your router's LuCI web interface in your browser. *(Note: If the menu doesn't appear immediately after installation, log out and log back in to clear the LuCI cache).*
 2. Navigate to **Services → Matrix Bot**.
-3. Fill in your Matrix URL, Access Token, Bot User, Admin User, and Room IDs.
+3. Fill in your Matrix URL, Access Token, Bot User, Admin User, and Room IDs. *(See [Obtaining an Access Token](#obtaining-an-access-token) if you are unsure about your Matrix URL).*
 4. If using **E2EE**, enable it and provide your SSH credentials.
 5. Configure optional features such as **Allowed Services** (for the `restart` command), **WOL PC MAC**, **WOL Interfaces**, and Wi-Fi preferences (**Detailed WiFi Output** and **Show WiFi Key**).
 6. Click **Save & Apply**. The `procd` daemon will automatically reload the bot with the new settings.
@@ -122,25 +172,37 @@ Send `help` or `start` to get the full command list from the bot itself.
 
 ### Command Reference
 
-| Category | Command | Description |
-|---|---|---|
-| **System** | `uptime` | Router uptime and load average |
-| | `memory` | RAM usage in MB (total / used / free) |
-| | `meminfo` | Detailed `/proc/meminfo` |
-| | `wan_ip` | Public WAN IP address (multi-fallback resolution) |
-| **Network** | `clients` | Full network report: Wi-Fi + wired clients |
-| | `wifi_clients` | Wi-Fi associated clients |
-| | `wired_clients` | Wired LAN clients |
-| **Services** | `restart <service>` | Restart a whitelisted service (e.g. `restart dnsmasq`) |
-| | `reload nginx` | Test Nginx config, then reload if valid |
-| **Interfaces**| `ifup <iface>` | Bring up a UCI interface (e.g. `ifup wan`) |
-| | `ifdown <iface>` | Bring down a UCI interface |
-| **Wi-Fi** | `wifi` / `wifi_info` | Wi-Fi information |
-| | `wifi_up_2_4` / `wifi_down_2_4` | Enable/Disable 2.4 GHz radio (radio0) |
-| | `wifi_up_5` / `wifi_down_5` | Enable/Disable 5 GHz radio (radio1) |
-| | `wifi_reload_2_4` / `wifi_reload_5` | Reload 2.4 GHz or 5 GHz radio |
-| **WOL** | `wol <MAC>` | Send WOL magic packet to any MAC (format: `AA:BB:CC:DD:EE:FF`) |
-| | `wol_pc` | Send WOL magic packet to pre-configured PC |
+| Command | Description |
+|---|---|
+| &nbsp; | &nbsp; |
+| **SYSTEM** | |
+| `uptime` | Router uptime and load average |
+| `memory` | RAM usage in MB (total / used / free) |
+| `meminfo` | Detailed `/proc/meminfo` |
+| `wan_ip` | Public WAN IP address (multi-fallback resolution) |
+| &nbsp; | &nbsp; |
+| **NETWORK** | |
+| `clients` | Full network report: Wi-Fi + wired clients |
+| `wifi_clients` | Wi-Fi associated clients |
+| `wired_clients` | Wired LAN clients |
+| &nbsp; | &nbsp; |
+| **SERVICES** | |
+| `restart <service>` | Restart a whitelisted service (e.g. `restart dnsmasq`) |
+| `reload nginx` | Test Nginx config, then reload if valid |
+| &nbsp; | &nbsp; |
+| **INTERFACES** | |
+| `ifup <iface>` | Bring up a UCI interface (e.g. `ifup wan`) |
+| `ifdown <iface>` | Bring down a UCI interface |
+| &nbsp; | &nbsp; |
+| **WI-FI** | |
+| `wifi` / `wifi_info` | Wi-Fi information |
+| `wifi_up_2_4` / `wifi_down_2_4` | Enable/Disable 2.4 GHz radio (radio0) |
+| `wifi_up_5` / `wifi_down_5` | Enable/Disable 5 GHz radio (radio1) |
+| `wifi_reload_2_4` / `wifi_reload_5` | Reload 2.4 GHz or 5 GHz radio |
+| &nbsp; | &nbsp; |
+| **WOL** | |
+| `wol <MAC>` | Send WOL magic packet to any MAC (format: `AA:BB:CC:DD:EE:FF`) |
+| `wol_pc` | Send WOL magic packet to pre-configured PC |
 
 ---
 
@@ -154,7 +216,7 @@ The CLI script can be used independently for your own system alerts or crontab n
 ```
 *Note: You can force a transport by passing `--ssh-only` or `--http-only`.*
 
-**Example: OpenWrt Hotplug Script (`/etc/hotplug.d/iface/97-get_ip`)**
+**Example:** OpenWrt Hotplug Script (`/etc/hotplug.d/iface/97-get_ip`)
 ```sh
 #!/bin/sh
 # Send a Matrix notification when the WAN interface comes up

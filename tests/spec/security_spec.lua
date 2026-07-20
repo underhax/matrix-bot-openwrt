@@ -22,7 +22,14 @@ describe("security utils", function()
     end)
 
     it("authorizes the admin user without sending alerts", function()
-        local ok = security.authorize_sender(cfg, transport, "!control:matrix.example", "@admin:matrix.example", "uptime", false)
+        local ok = security.authorize_sender(
+            cfg,
+            transport,
+            "!control:matrix.example",
+            "@admin:matrix.example",
+            "uptime",
+            false
+        )
 
         assert.is_true(ok)
         assert.are.equal(0, #sent_messages)

@@ -236,7 +236,8 @@ function M.poll(cfg, on_event)
                 nixio.nanosleep(backoff, 0)
                 backoff = backoff * 2
                 if backoff > max_backoff then
-                    backoff = max_backoff
+                    logger.error("FATAL: Max SSH retries reached. Exiting poller.")
+                    os.exit(1)
                 end
             end
         end

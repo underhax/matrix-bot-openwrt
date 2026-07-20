@@ -29,6 +29,19 @@ local control_section = map:section(NamedSection, "main", "matrixbot", translate
 control_section.anonymous = true
 control_section.addremove = false
 
+local version = control_section:option(DummyValue, "_version", translate("Package Version"))
+version.rawhtml = true
+version.cfgvalue = function(_self, _section)
+    local v = sys.exec("apk list -I matrixbot 2>/dev/null") or ""
+    local ver = v:match("^matrixbot%-([^%s]+)")
+    if ver then
+        v = ver
+    else
+        v = "Unknown"
+    end
+    return string.format('<span style="font-weight:bold">%s</span>', v)
+end
+
 local status = control_section:option(DummyValue, "_status", translate("Service Status"))
 status.rawhtml = true
 status.cfgvalue = function(_self, _section)
@@ -261,8 +274,12 @@ local function validate_domain_port(val)
     return true
 end
 
-local url_option =
-    main_section:option(Value, "url", translate("Matrix Homeserver URL"), translate("e.g. https://matrix-example.tld"))
+local url_option = main_section:option(
+    Value,
+    "url",
+    translate("Matrix Homeserver URL"),
+    translate("The Client-Server API URL. Do not use the base domain if your API is hosted on a subdomain.<br />Unsure? Check <code>https://matrix.org/.well-known/matrix/client</code> and use the <code>base_url</code>.<br />Note: Replace <code>matrix.org</code> with the domain from your <code>@user:your-matrix-domain.tld</code> ID.<br />Example: <code>https://matrix-client.matrix.org</code>")
+)
 url_option.size = 60
 url_option.rmempty = false
 function url_option.validate(_self, value, _section)
@@ -290,7 +307,7 @@ function url_option.validate(_self, value, _section)
 end
 
 local bot_user_option =
-    main_section:option(Value, "bot_user", translate("Bot User ID"), translate("e.g. @mybot:matrix-example.tld"))
+    main_section:option(Value, "bot_user", translate("Bot User ID"), translate("The Matrix ID of the bot.<br />Example: <code>@mybot:your-matrix-domain.tld</code>"))
 bot_user_option.size = 60
 bot_user_option.rmempty = false
 function bot_user_option.validate(self, value, section)
@@ -321,7 +338,7 @@ local admin_user_option = main_section:option(
     Value,
     "admin_user",
     translate("Admin User ID"),
-    translate("The only user allowed to send commands.")
+    translate("The Matrix ID of the administrator. Only this user is allowed to send commands.<br />Example: <code>@admin:your-matrix-domain.tld</code>")
 )
 admin_user_option.size = 60
 admin_user_option.rmempty = false
@@ -336,7 +353,7 @@ local admin_room_option = main_section:option(
     Value,
     "admin_room",
     translate("Admin Alert Room"),
-    translate("Room ID for security alerts. Examples: !roomid:server or !opaquev12roomid")
+    translate("Room ID for security alerts.<br />Examples: <code>!roomid:your-matrix-domain.tld</code> or <code>!opaque-v12_roomid</code>")
 )
 admin_room_option.size = 60
 admin_room_option.rmempty = false
@@ -351,7 +368,7 @@ local rooms_option = main_section:option(
     DynamicList,
     "rooms",
     translate("Command Rooms"),
-    translate("Room IDs where the bot accepts commands. Examples: !roomid:server or !opaquev12roomid")
+    translate("Room IDs where the bot accepts commands.<br />Examples: <code>!roomid:your-matrix-domain.tld</code> or <code>!opaque-v12_roomid</code>")
 )
 rooms_option.size = 60
 rooms_option.rmempty = false
@@ -413,7 +430,7 @@ local data_dir_option = e2ee_section:option(
     Value,
     "data_dir",
     translate("matrix-cli Data Directory"),
-    translate("Optional path to the matrix-cli data directory on the remote host (e.g., /home/bot/.config/matrix-cli).")
+    translate("Optional path to the matrix-cli data directory on the remote host.<br />Example: <code>/home/bot/.config/matrix-cli</code>")
 )
 data_dir_option.datatype = "string"
 data_dir_option.rmempty = true

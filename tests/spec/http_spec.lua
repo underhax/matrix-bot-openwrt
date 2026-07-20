@@ -65,7 +65,7 @@ describe("http transport", function()
     it("should forward m.room.encrypted events to the callback", function()
         local call_index = 0
         ---@diagnostic disable-next-line: duplicate-set-field
-        http.request = function(_, _, endpoint)
+        http.request = function(_, _, _endpoint)
             call_index = call_index + 1
             if call_index == 1 then
                 return { next_batch = "batch1" }

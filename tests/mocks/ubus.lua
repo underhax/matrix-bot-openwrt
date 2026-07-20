@@ -2,7 +2,7 @@ local mock = {}
 
 function mock.connect()
     return {
-        call = function(self, namespace, method, args)
+        call = function(_self, namespace, method, _args)
             if namespace == "system" and method == "info" then
                 return {
                     memory = {

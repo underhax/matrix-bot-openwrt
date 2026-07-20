@@ -1,4 +1,4 @@
-#!/usr/bin/env lua
+#!/usr/bin/lua
 local os = require("os")
 local sender_entry = require("matrixbot.sender.entry")
 

@@ -1,7 +1,7 @@
 -- luacheck: push ignore 121 122
 package.loaded["ubus"] = require("tests.mocks.ubus")
 package.loaded["ssl.https"] = {
-    request = function(req)
+    request = function(_req)
         return 1, 200, nil, nil
     end,
 }
@@ -70,7 +70,7 @@ describe("sysinfo command", function()
 
             local last_msg = nil
             local transport_mock = {
-                send_message = function(c, r, msg)
+                send_message = function(_c, _r, msg)
                     last_msg = msg
                     return true
                 end,

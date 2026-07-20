@@ -47,4 +47,75 @@ describe("wifi command", function()
         assert.are.equal("❌ <b>Error:</b> radio0 not found in config.", result)
         assert.are.equal(0, #nixio_mock.exec_calls)
     end)
+
+    it("gracefully handles missing iwinfo type for an interface", function()
+        local iwinfo_mock = require("tests.mocks.iwinfo")
+        local old_type = iwinfo_mock.type
+        ---@diagnostic disable-next-line: duplicate-set-field
+        iwinfo_mock.type = function(_ifname)
+            return nil
+        end
+
+        local result = wifi.execute("wifi_info", "", {})
+        iwinfo_mock.type = old_type
+
+        assert.are.equal("🤖 No wireless interfaces found.", result)
+    end)
+
+    it("gracefully handles missing iwinfo table despite type returning something", function()
+        local iwinfo_mock = require("tests.mocks.iwinfo")
+        local old_type = iwinfo_mock.type
+        ---@diagnostic disable-next-line: duplicate-set-field
+        iwinfo_mock.type = function(_ifname)
+            return "ghost_type"
+        end
+
+        local result = wifi.execute("wifi_info", "", {})
+        iwinfo_mock.type = old_type
+
+        assert.are.equal("🤖 No wireless interfaces found.", result)
+    end)
+
+    it("generates detailed info and handles strange signal values without crashing", function()
+        local iwinfo_mock = require("tests.mocks.iwinfo")
+        local old_signal = iwinfo_mock.nl80211.signal
+        iwinfo_mock.nl80211.signal = function(ifname)
+            if ifname == "wlan0" then
+                return -200
+            end
+            return nil
+        end
+        iwinfo_mock.nl80211.bssid = function() return "aa:bb:cc:dd:ee:ff" end
+        iwinfo_mock.nl80211.bitrate = function() return 100000 end
+        iwinfo_mock.nl80211.encryption = function() return { description = "WPA2-PSK" } end
+        iwinfo_mock.nl80211.mode = function() return "Master" end
+        iwinfo_mock.nl80211.hardware_name = function() return "Generic MAC" end
+        iwinfo_mock.nl80211.country = function() return "US" end
+        iwinfo_mock.nl80211.noise = function() return -95 end
+        iwinfo_mock.nl80211.txpower = function() return 20 end
+        iwinfo_mock.nl80211.frequency = function() return 2412 end
+
+        local cfg = {
+            features = {
+                wifi_detailed = true,
+                wifi_show_key = true
+            }
+        }
+
+        local result = wifi.execute("wifi_info", "", cfg)
+        iwinfo_mock.nl80211.signal = old_signal
+        iwinfo_mock.nl80211.bssid = nil
+        iwinfo_mock.nl80211.bitrate = nil
+        iwinfo_mock.nl80211.encryption = nil
+        iwinfo_mock.nl80211.mode = nil
+        iwinfo_mock.nl80211.hardware_name = nil
+        iwinfo_mock.nl80211.country = nil
+        iwinfo_mock.nl80211.noise = nil
+        iwinfo_mock.nl80211.txpower = nil
+        iwinfo_mock.nl80211.frequency = nil
+
+        assert.is_not_nil(result:find("Signal: %-200 dBm"))
+        assert.is_not_nil(result:find("Clients: <b>1</b>"))
+        assert.is_not_nil(result:find("🚀 5G wlan0"))
+    end)
 end)

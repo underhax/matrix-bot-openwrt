@@ -215,7 +215,8 @@ local function init_encryption_cache(cfg)
                 end
             end
         else
-            logger.warn("Failed to retrieve room encryption status via SSH/matrix-cli")
+            logger.error("FATAL: Failed to retrieve room encryption status via SSH/matrix-cli")
+            os.exit(1)
         end
         return
     end
@@ -312,6 +313,10 @@ local function start()
     watchdog = uloop.timer(function()
         local wpid, _, code = nixio.waitpid(poller_pid, "nohang")
         if wpid == poller_pid then
+            if code == 1 then
+                logger.error("FATAL: Matrix Poller died with error 1. Exiting main daemon.")
+                os.exit(1)
+            end
             logger.warn("Matrix Poller process died (Code: " .. tostring(code) .. "), restarting...")
             poller_pid = start_poller(cfg, transport)
             local f = io.open("/var/run/matrixbot_poller.pid", "w")
