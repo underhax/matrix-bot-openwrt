@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>matrix-bot-openwrt Repository</title>
+    <style>
+        :root {
+            --bg-color: #0d1117;
+            --text-color: #c9d1d9;
+            --accent-color: #58a6ff;
+            --card-bg: #161b22;
+            --border-color: #30363d;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            line-height: 1.6;
+            margin: 0;
+            padding: 2rem 1rem;
+            display: flex;
+            justify-content: center;
+        }
+        .container {
+            max-width: 1024px;
+            width: 100%;
+        }
+        h1 {
+            color: #ffffff;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 0.5rem;
+            margin-bottom: 1.5rem;
+        }
+        h2 {
+            font-size: 1.2rem;
+            color: #ffffff;
+            margin-top: 0;
+        }
+        .card {
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+        }
+        p {
+            margin-top: 0;
+            margin-bottom: 1rem;
+        }
+        code {
+            font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+            font-size: 75%;
+        }
+        p > code {
+            background-color: rgba(110, 118, 129, 0.4);
+            padding: 0.2em 0.4em;
+            border-radius: 6px;
+        }
+        .step-desc {
+            font-size: 0.95em;
+            margin-bottom: 0.5rem;
+            margin-top: 1.5rem;
+        }
+        .code-container {
+            position: relative;
+            margin-bottom: 1rem;
+        }
+        pre {
+            background-color: #010409;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            padding: 16px;
+            margin: 0;
+        }
+        pre code {
+            background-color: transparent;
+            padding: 0;
+            color: #e6edf3;
+            white-space: pre-wrap;
+            word-break: break-all;
+        }
+        .copy-btn {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            background-color: #21262d;
+            color: #c9d1d9;
+            border: 1px solid rgba(240, 246, 252, 0.1);
+            border-radius: 6px;
+            padding: 4px 8px;
+            font-size: 12px;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+        .copy-btn:hover {
+            background-color: #30363d;
+        }
+        a {
+            color: var(--accent-color);
+            text-decoration: none;
+        }
+        a:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📦 matrix-bot-openwrt</h1>
+        <p>This is a custom APK repository for OpenWrt. It hosts the <code>matrixbot</code> and <code>luci-app-matrixbot</code> packages.</p>
+        <p>Source code: <a href="https://github.com/underhax/matrix-bot-openwrt" target="_blank" rel="noopener noreferrer">github.com/underhax/matrix-bot-openwrt</a></p>
+
+        <div class="card">
+            <h2>Running System</h2>
+            <p>Execute these commands sequentially on your active OpenWrt router:</p>
+
+            <div class="step-desc">1. Download and install the public key:</div>
+            <div class="code-container">
+                <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+                <pre><code>wget -O /etc/apk/keys/underhax-owrt.rsa.pub https://underhax.github.io/matrix-bot-openwrt/underhax-owrt.rsa.pub</code></pre>
+            </div>
+
+            <div class="step-desc">2. Add the repository to custom feeds:</div>
+            <div class="code-container">
+                <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+                <pre><code>echo 'https://underhax.github.io/matrix-bot-openwrt/packages.adb' >> /etc/apk/repositories.d/customfeeds.list</code></pre>
+            </div>
+
+            <div class="step-desc">3. Update the package index and install:</div>
+            <div class="code-container">
+                <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+                <pre><code>apk update && apk add matrixbot luci-app-matrixbot</code></pre>
+            </div>
+            <p style="margin-top: 1rem; font-size: 0.9em;">Direct links: <a href="underhax-owrt.rsa.pub">Public Key</a>, <a href="https://github.com/underhax/matrix-bot-openwrt/releases">Releases</a></p>
+        </div>
+
+        <div class="card">
+            <h2>Image Builder</h2>
+            <p>Run these commands sequentially in your Image Builder root directory:</p>
+
+            <div class="step-desc">1. Download the public key:</div>
+            <div class="code-container">
+                <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+                <pre><code>wget -O keys/underhax-owrt.rsa.pub https://underhax.github.io/matrix-bot-openwrt/underhax-owrt.rsa.pub</code></pre>
+            </div>
+
+            <div class="step-desc">2. Remove existing entry to avoid duplicates:</div>
+            <div class="code-container">
+                <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+                <pre><code>sed -i '/underhax.github.io\/matrix-bot-openwrt/d' repositories</code></pre>
+            </div>
+
+            <div class="step-desc">3. Add the repository:</div>
+            <div class="code-container">
+                <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+                <pre><code>echo 'https://underhax.github.io/matrix-bot-openwrt/packages.adb' >> repositories</code></pre>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function copyCode(btn) {
+            const pre = btn.nextElementSibling;
+            const text = pre.innerText;
+            navigator.clipboard.writeText(text).then(() => {
+                const originalText = btn.innerText;
+                btn.innerText = 'Copied!';
+                setTimeout(() => {
+                    btn.innerText = originalText;
+                }, 2000);
+            });
+        }
+    </script>
+</body>
+</html>
