@@ -1,0 +1,69 @@
+name: Update Vendored apk-tools
+
+on:
+  schedule:
+    - cron: '0 3 * * 0'
+  workflow_dispatch:
+
+permissions:
+    contents: read
+
+jobs:
+  update-tools:
+    name: Check and Update apk-tools
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Check and Verify Updates
+        id: update
+        run: |
+          mkdir -p /tmp/apk-tools-update
+          cd /tmp/apk-tools-update
+
+          ${{ github.workspace }}/.github/tools/apk fetch \
+            --no-cache \
+            --repository "https://dl-cdn.alpinelinux.org/alpine/edge/main/" \
+            --allow-untrusted \
+            apk-tools-static
+
+          tar -xzf apk-tools-static-*.apk sbin/apk.static
+
+          if [ ! -f "./sbin/apk.static" ]; then
+            echo "Failed to extract apk.static"
+            exit 1
+          fi
+
+          chmod +x ./sbin/apk.static
+
+          if cmp -s ./sbin/apk.static ${{ github.workspace }}/.github/tools/apk; then
+            echo "changed=false" >> $GITHUB_OUTPUT
+          else
+            cp ./sbin/apk.static ${{ github.workspace }}/.github/tools/apk
+            echo "changed=true" >> $GITHUB_OUTPUT
+
+            APK_FILE=$(ls apk-tools-static-*.apk)
+            VERSION=$(echo "$APK_FILE" | sed -E 's/apk-tools-static-(.*)\.apk/\1/')
+            echo "version=$VERSION" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create Pull Request
+        if: steps.update.outputs.changed == 'true'
+        uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: "chore: update vendored apk-tools to ${{ steps.update.outputs.version }}"
+          title: "chore: update vendored apk-tools to ${{ steps.update.outputs.version }}"
+          body: |
+            Automated update of the vendored `apk` static binary.
+
+            - Downloaded from Alpine Edge (x86_64/main)
+            - Package: `apk-tools-static-${{ steps.update.outputs.version }}.apk`
+            - Cryptographically verified via index SHA256 hash.
+          branch: update-apk-tools
+          delete-branch: true

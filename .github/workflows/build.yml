@@ -66,16 +66,17 @@ jobs:
 
       - name: Sign and Generate Index
         run: |
-          docker run --rm -v ${{ github.workspace }}/to_sign:/workspace \
+          docker run --rm -v ${{ github.workspace }}:/workspace \
             -e APK_PRIVATE_KEY="${{ secrets.APK_PRIVATE_KEY }}" \
             alpine:latest sh -c '
-              apk add --no-cache alpine-sdk
+              set -e
               echo "$APK_PRIVATE_KEY" > /tmp/repo.rsa
-              cd /workspace
-              abuild-sign -k /tmp/repo.rsa *.apk
-              apk mkndx --sign /tmp/repo.rsa -o packages.adb *.apk
-              rm /tmp/repo.rsa
-            '
+              cd /workspace/to_sign
+              /workspace/.github/tools/apk mkndx \
+                --allow-untrusted \
+                --sign-key /tmp/repo.rsa \
+                --output packages.adb \
+                *.apk'
 
       - name: Upload Signed Artifacts
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
