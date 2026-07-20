@@ -75,18 +75,48 @@ Invite the bot account to all rooms. Get room IDs from your client (usually unde
 
 ## Installation
 
-The easiest way to install the bot is using the pre-compiled `.apk` package from GitHub Releases.
+The easiest way to install the bot is by adding our custom APK repository. This allows for seamless installations and future updates via the standard OpenWrt package manager.
 
-### Option 1: Direct Package Install
+### Option 1: Custom APK Repository (Recommended)
 
-To install the packages, you need to get them into your router's `/tmp` directory and then run the installation commands via SSH.
-You can either connect via SSH immediately and download them directly from the router (Method A), or download them manually to your PC and transfer them via `scp` (Method B).
+#### For Active Routers (Running System)
+Execute these commands sequentially via SSH on your OpenWrt router:
 
-#### Step 1: Download Packages
+1. **Download and install the public key:**
+   ```sh
+   wget -O /etc/apk/keys/underhax-owrt.rsa.pub https://underhax.github.io/matrix-bot-openwrt/underhax-owrt.rsa.pub
+   ```
+2. **Add the repository to custom feeds:**
+   ```sh
+   echo 'https://underhax.github.io/matrix-bot-openwrt/packages/packages.adb' >> /etc/apk/repositories.d/customfeeds.list
+   ```
+3. **Update the package index and install:**
+   ```sh
+   apk update && apk add matrixbot luci-app-matrixbot
+   ```
 
-**Method A: Download directly from the router**
-Connect to your router via SSH and choose either `curl` (recommended if installed) or `wget`.
-*Note: The default `wget` on a bare OpenWrt installation might fail to download from GitHub due to missing HTTPS/SSL certificates. If it fails, install `wget-ssl`.*
+#### For OpenWrt Image Builder
+Run these commands sequentially in your Image Builder root directory:
+
+1. **Download the public key:**
+   ```sh
+   wget -O keys/underhax-owrt.rsa.pub https://underhax.github.io/matrix-bot-openwrt/underhax-owrt.rsa.pub
+   ```
+2. **Remove existing entry to avoid duplicates (optional):**
+   ```sh
+   sed -i '/underhax.github.io\/matrix-bot-openwrt/d' repositories
+   ```
+3. **Add the repository:**
+   ```sh
+   echo 'https://underhax.github.io/matrix-bot-openwrt/packages/packages.adb' >> repositories
+   ```
+
+### Option 2: Direct Package Install (Manual)
+
+<details>
+<summary>Click here to view manual installation instructions</summary>
+
+To install the packages manually, you need to download them into your router's `/tmp` directory.
 
 **Using curl:**
 ```sh
@@ -117,10 +147,9 @@ cd /tmp && \
 apk add --allow-untrusted matrixbot-*.apk luci-app-matrixbot-*.apk && \
 rm -f matrixbot-*.apk luci-app-matrixbot-*.apk
 ```
+</details>
 
-*(In the future, a dedicated custom APK repository will be provided for seamless `apk update` integrations).*
-
-### Option 2: Build from Source & Manual Testing
+### Option 3: Build from Source & Manual Testing
 If you are a developer or want to test the latest `main` branch, refer to our detailed [**Manual Testing Guide**](MANUAL_TESTING.md).
 
 ---
