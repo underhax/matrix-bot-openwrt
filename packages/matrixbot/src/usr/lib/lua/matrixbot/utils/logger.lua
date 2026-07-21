@@ -27,7 +27,11 @@ function M.error(msg)
     if not msg then
         return
     end
-    nixio.syslog("err", "matrixbot: " .. tostring(msg))
+    local str = tostring(msg)
+    nixio.syslog("err", "matrixbot: " .. str)
+    if string.match(str, "^FATAL:") then
+        os.execute("(/etc/init.d/matrixbot stop) >/dev/null 2>&1 &")
+    end
 end
 
 function M.debug(msg)

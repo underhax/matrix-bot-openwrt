@@ -59,20 +59,46 @@ jobs:
           name: unsigned-packages
           path: release_assets
 
-      - name: Prepare APKs
+      - name: Checkout gh-pages branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        continue-on-error: true
+        with:
+          ref: gh-pages
+          path: gh-pages-branch
+
+      - name: Prepare and Sign New APKs
+        run: |
+          mkdir -p new_apks
+          find release_assets -type f -name "*.apk" -exec cp {} new_apks/ \;
+          
+          docker run --rm -v ${{ github.workspace }}:/workspace \
+            -e APK_PRIVATE_KEY="${{ secrets.APK_PRIVATE_KEY }}" \
+            alpine:edge sh -c '
+              set -e
+              echo "$APK_PRIVATE_KEY" > /tmp/repo.rsa
+              cd /workspace/new_apks
+              apk adbsign --allow-untrusted --sign-key /tmp/repo.rsa *.apk
+            '
+
+      - name: Merge, Clean and Generate Index
         run: |
           mkdir -p to_sign
-          find release_assets -type f -name "*.apk" -exec cp {} to_sign/ \;
+          if [ -d "gh-pages-branch/packages" ]; then
+            cp gh-pages-branch/packages/*.apk to_sign/ || true
+          fi
+          cp new_apks/*.apk to_sign/
+          
+          cd to_sign
+          ls matrixbot-*.apk 2>/dev/null | sort -rV | tail -n +51 | xargs -r rm -f || true
+          ls luci-app-matrixbot-*.apk 2>/dev/null | sort -rV | tail -n +51 | xargs -r rm -f || true
+          cd ..
 
-      - name: Sign and Generate Index
-        run: |
           docker run --rm -v ${{ github.workspace }}:/workspace \
             -e APK_PRIVATE_KEY="${{ secrets.APK_PRIVATE_KEY }}" \
             alpine:edge sh -c '
               set -e
               echo "$APK_PRIVATE_KEY" > /tmp/repo.rsa
               cd /workspace/to_sign
-              apk adbsign --allow-untrusted --sign-key /tmp/repo.rsa *.apk
               apk mkndx \
                 --allow-untrusted \
                 --sign-key /tmp/repo.rsa \
@@ -130,10 +156,11 @@ jobs:
       - name: Update Repository Files
         run: |
           mkdir -p gh-pages-branch/packages
+          rm -f gh-pages-branch/packages/*
           cp signed_assets/* gh-pages-branch/packages/
           cd gh-pages-branch
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add packages/
+          git add --all packages/
           git commit -m "chore: update APK repository for release ${{ github.ref_name }}" || echo "No changes to commit"
           git push

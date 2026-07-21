@@ -15,16 +15,19 @@ A lightweight, native **Lua 5.1** bot for remote router management over the [Mat
 - **Standalone Sender**: The CLI notification script (`matrix_send`) can be used independently in your crontabs or custom scripts to push alerts to Matrix (with auto-fallback from E2EE to HTTP).
 - **Security-First**: Unauthorized access attempts trigger instant security alerts to a dedicated Admin Room. Managed natively by `procd`.
 
-**Compatibility:** Successfully tested on OpenWrt 25.12.4 using **Xiaomi Mi Router 3G** (and expected to work seamlessly on all newer 25.x releases).
+**Compatibility:** Successfully tested on OpenWrt 25.12.5 using **Xiaomi Mi Router 3G** (and expected to work seamlessly on all newer 25.x releases).
 
 ---
 
 ## Matrix Setup
 
+<details>
+<summary>Click here to view instructions</summary>
+
 ### 1. Register a bot account
 Register a dedicated Matrix account for the bot on your homeserver (e.g. `@matrixbot:your-matrix-domain.tld`). Do **not** use your personal account.
 
-### Obtaining an Access Token
+### 2. Obtaining an Access Token
 
 If you don't have an access token for your bot account, you can generate one using `curl` or `wget` from any terminal.
 
@@ -71,6 +74,7 @@ Create (or reuse) the following rooms in your Matrix client:
 
 Invite the bot account to all rooms. Get room IDs from your client (usually under Room Settings → Advanced) — they look like `!AbCdEfGhIj:matrix-example.tld` or the newer domain-less format `!0xRqYq5IIruJFFcCLhkzepUfk5m2InboNUkXe3ZTqPs`.
 
+</details>
 ---
 
 ## Installation
@@ -163,7 +167,7 @@ The recommended way to configure the bot is through the OpenWrt Web GUI.
 2. Navigate to **Services → Matrix Bot**.
 3. Fill in your Matrix URL, Access Token, Bot User, Admin User, and Room IDs. *(See [Obtaining an Access Token](#obtaining-an-access-token) if you are unsure about your Matrix URL).*
 4. If using **E2EE**, enable it and provide your SSH credentials.
-5. Configure optional features such as **Allowed Services** (for the `restart` command), **WOL PC MAC**, **WOL Interfaces**, and Wi-Fi preferences (**Detailed WiFi Output** and **Show WiFi Key**).
+5. Configure optional features such as **Start Delay** (to wait for network on boot), **Allowed Services** (for the `restart` command), **WOL PC MAC**, **WOL Interfaces**, and Wi-Fi preferences.
 6. Click **Save & Apply**. The `procd` daemon will automatically reload the bot with the new settings.
 
 *Alternatively, you can edit `/etc/config/matrixbot` manually via SSH and run `service matrixbot reload`.*

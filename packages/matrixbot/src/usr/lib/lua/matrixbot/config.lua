@@ -45,6 +45,7 @@ function M.load()
         bot_user = get_opt("main", "bot_user", ""),
         admin_user = get_opt("main", "admin_user", ""),
         debug = get_opt("main", "debug", "0") == "1",
+        start_delay = tonumber(get_opt("main", "start_delay", "30")) or 30,
     }
 
     local rooms = get_list("main", "rooms")
