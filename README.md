@@ -7,6 +7,30 @@
 
 A lightweight, native **Lua 5.1** bot for remote router management over the [Matrix protocol](https://matrix.org/). Designed specifically for OpenWrt, providing a secure, efficient, and memory-safe way to control your router from any Matrix client.
 
+<details>
+<summary>View Screenshots</summary>
+
+<table>
+  <tr>
+    <td width="30%" valign="top">
+      <a href=".github/images/luci.webp">
+        <img src=".github/images/luci.webp" alt="luci">
+      </a>
+    </td>
+    <td width="70%" valign="top">
+      <a href=".github/images/matrixroom-enc.webp">
+        <img src=".github/images/matrixroom-enc.webp" alt="Encrypted Room">
+      </a>
+      <br><br>
+      <a href=".github/images/matrixroom-unenc.webp">
+        <img src=".github/images/matrixroom-unenc.webp" alt="Unencrypted Room">
+      </a>
+    </td>
+  </tr>
+</table>
+
+</details>
+
 **Key Features:**
 - **Native OpenWrt Integration**: Built on robust OpenWrt C-bindings (`ubus`, `uci`, `iwinfo`, `cjson`, etc.) for minimal CPU footprint, zero-allocation performance, and deep system interaction.
 - **Web UI Configuration**: Fully integrated with OpenWrt's **LuCI** web interface. Configure tokens, rooms, and services directly from your browser.

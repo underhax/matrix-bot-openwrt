@@ -83,21 +83,29 @@ local control = control_section:option(DummyValue, "_control", translate("Servic
 control.rawhtml = true
 -- luacheck: push ignore 631
 control.cfgvalue = function(_self, _section)
+    local running = (sys.call("/etc/init.d/matrixbot running >/dev/null 2>&1") == 0)
+    local enabled = (sys.call("/etc/init.d/matrixbot enabled >/dev/null 2>&1") == 0)
+
+    local d_start = running and " disabled" or ""
+    local d_stop = running and "" or " disabled"
+    local d_en = enabled and " disabled" or ""
+    local d_dis = enabled and "" or " disabled"
+
     return [[
-        <button class="btn cbi-button cbi-button-apply" type="submit" name="cbid.matrixbot.main._action" value="start">]] .. translate(
+        <button class="btn cbi-button cbi-button-apply" type="submit" name="cbid.matrixbot.main._action" value="start"]] .. d_start .. [[>]] .. translate(
         "Start"
     ) .. [[</button>
-        <button class="btn cbi-button cbi-button-apply" type="submit" name="cbid.matrixbot.main._action" value="restart">]] .. translate(
+        <button class="btn cbi-button cbi-button-apply" type="submit" name="cbid.matrixbot.main._action" value="restart"]] .. d_stop .. [[>]] .. translate(
         "Restart"
     ) .. [[</button>
-        <button class="btn cbi-button cbi-button-remove" type="submit" name="cbid.matrixbot.main._action" value="stop">]] .. translate(
+        <button class="btn cbi-button cbi-button-remove" type="submit" name="cbid.matrixbot.main._action" value="stop"]] .. d_stop .. [[>]] .. translate(
         "Stop"
     ) .. [[</button>
         <span style="margin: 0 10px;"></span>
-        <button class="btn cbi-button cbi-button-apply" type="submit" name="cbid.matrixbot.main._action" value="enable">]] .. translate(
+        <button class="btn cbi-button cbi-button-apply" type="submit" name="cbid.matrixbot.main._action" value="enable"]] .. d_en .. [[>]] .. translate(
         "Enable"
     ) .. [[</button>
-        <button class="btn cbi-button cbi-button-remove" type="submit" name="cbid.matrixbot.main._action" value="disable">]] .. translate(
+        <button class="btn cbi-button cbi-button-remove" type="submit" name="cbid.matrixbot.main._action" value="disable"]] .. d_dis .. [[>]] .. translate(
         "Disable"
     ) .. [[</button>
     ]]
