@@ -12,16 +12,16 @@ A lightweight, native **Lua 5.1** bot for remote router management over the [Mat
 
 <table>
   <tr>
-    <td width="30%" valign="top">
+    <td width="45%" valign="top">
       <a href=".github/images/luci.webp">
         <img src=".github/images/luci.webp" alt="luci">
       </a>
     </td>
-    <td width="70%" valign="top">
+    <td width="55%" valign="top">
       <a href=".github/images/matrixroom-enc.webp">
         <img src=".github/images/matrixroom-enc.webp" alt="Encrypted Room">
       </a>
-      <br><br>
+      <br>
       <a href=".github/images/matrixroom-unenc.webp">
         <img src=".github/images/matrixroom-unenc.webp" alt="Unencrypted Room">
       </a>
