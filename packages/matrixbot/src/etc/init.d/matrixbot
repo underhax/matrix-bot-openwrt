@@ -6,14 +6,23 @@ USE_PROCD=1
 NAME="matrixbot"
 PROG="/usr/lib/lua/matrixbot/main.lua"
 
+BOOTING=0
+
+boot() {
+    BOOTING=1
+    start
+}
+
 start_service() {
     if ! /usr/bin/lua -e "if not require('matrixbot.config').load() then os.exit(1) end"; then
         logger -t "$NAME" "Service start aborted due to configuration errors."
         return 1
     fi
 
-    local delay
-    delay="$(uci -q get matrixbot.main.start_delay || printf '30')"
+    local delay=0
+    if [ "$BOOTING" = "1" ]; then
+        delay="$(uci -q get matrixbot.main.start_delay || printf '30')"
+    fi
 
     procd_open_instance
     if [ -n "$delay" ] && [ "$delay" -gt 0 ] 2>/dev/null; then

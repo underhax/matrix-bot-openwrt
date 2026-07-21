@@ -48,7 +48,7 @@ status.cfgvalue = function(_self, _section)
     local running = (sys.call("/etc/init.d/matrixbot running >/dev/null 2>&1") == 0)
     local enabled = (sys.call("/etc/init.d/matrixbot enabled >/dev/null 2>&1") == 0)
 
-    local uptime_str = ""
+    local stat_str
     if running then
         local fs = require("nixio.fs")
         local stat = fs.stat("/var/run/matrixbot_poller.pid")
@@ -59,6 +59,7 @@ status.cfgvalue = function(_self, _section)
             local d = math.floor(h / 24)
             m = m % 60
             h = h % 24
+            local uptime_str
             if d > 0 then
                 uptime_str = string.format(" (Uptime: %dd %dh %dm)", d, h, m)
             elseif h > 0 then
@@ -66,12 +67,13 @@ status.cfgvalue = function(_self, _section)
             else
                 uptime_str = string.format(" (Uptime: %dm)", m)
             end
+            stat_str = '<span style="color:green;font-weight:bold">' .. translate("Running") .. uptime_str .. "</span>"
+        else
+            stat_str = '<span style="color:orange;font-weight:bold">' .. translate("Starting...") .. "</span>"
         end
+    else
+        stat_str = '<span style="color:red;font-weight:bold">' .. translate("Stopped") .. "</span>"
     end
-
-    local stat_str = running
-            and '<span style="color:green;font-weight:bold">' .. translate("Running") .. uptime_str .. "</span>"
-        or '<span style="color:red;font-weight:bold">' .. translate("Stopped") .. "</span>"
     local en_str = enabled and translate("Enabled") or translate("Disabled")
 
     return string.format("%s (%s)", stat_str, en_str)
