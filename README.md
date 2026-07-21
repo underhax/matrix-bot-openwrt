@@ -75,7 +75,6 @@ Create (or reuse) the following rooms in your Matrix client:
 Invite the bot account to all rooms. Get room IDs from your client (usually under Room Settings → Advanced) — they look like `!AbCdEfGhIj:matrix-example.tld` or the newer domain-less format `!0xRqYq5IIruJFFcCLhkzepUfk5m2InboNUkXe3ZTqPs`.
 
 </details>
----
 
 ## Installation
 
@@ -165,7 +164,7 @@ The recommended way to configure the bot is through the OpenWrt Web GUI.
 
 1. Open your router's LuCI web interface in your browser. *(Note: If the menu doesn't appear immediately after installation, log out and log back in to clear the LuCI cache).*
 2. Navigate to **Services → Matrix Bot**.
-3. Fill in your Matrix URL, Access Token, Bot User, Admin User, and Room IDs. *(See [Obtaining an Access Token](#obtaining-an-access-token) if you are unsure about your Matrix URL).*
+3. Fill in your Matrix URL, Access Token, Bot User, Admin User, and Room IDs. *(See [Obtaining an Access Token](#matrix-setup) if you are unsure about your Matrix URL).*
 4. If using **E2EE**, enable it and provide your SSH credentials.
 5. Configure optional features such as **Start Delay** (to wait for network on boot), **Allowed Services** (for the `restart` command), **WOL PC MAC**, **WOL Interfaces**, and Wi-Fi preferences.
 6. Click **Save & Apply**. The `procd` daemon will automatically reload the bot with the new settings.

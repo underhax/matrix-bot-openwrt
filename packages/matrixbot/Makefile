@@ -38,4 +38,33 @@ define Package/matrixbot/install
 	$(INSTALL_CONF) ./src/etc/config/matrixbot $(1)/etc/config/matrixbot
 endef
 
+define Package/matrixbot/postinst
+#!/bin/sh
+[ -n "$${IPKG_INSTROOT}" ] || {
+	if [ -f /tmp/matrixbot_upgrade_enabled ]; then
+		rm -f /tmp/matrixbot_upgrade_enabled
+		/etc/init.d/matrixbot enable
+	fi
+	if [ -f /tmp/matrixbot_upgrade_running ]; then
+		rm -f /tmp/matrixbot_upgrade_running
+		/etc/init.d/matrixbot start
+	fi
+}
+exit 0
+endef
+
+define Package/matrixbot/prerm
+#!/bin/sh
+[ -n "$${IPKG_INSTROOT}" ] || {
+	if /etc/init.d/matrixbot enabled; then
+		touch /tmp/matrixbot_upgrade_enabled
+	fi
+	if /etc/init.d/matrixbot running; then
+		touch /tmp/matrixbot_upgrade_running
+	fi
+	/etc/init.d/matrixbot stop
+}
+exit 0
+endef
+
 $(eval $(call BuildPackage,matrixbot))
