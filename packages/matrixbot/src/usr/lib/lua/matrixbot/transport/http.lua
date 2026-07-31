@@ -3,6 +3,7 @@ local ltn12 = require("ltn12")
 local cjson = require("cjson")
 local logger = require("matrixbot.utils.logger")
 local nixio = require("nixio")
+local state = require("matrixbot.utils.state")
 
 local M = {}
 local tx_id = 0
@@ -142,6 +143,7 @@ function M.poll(cfg, on_event)
         next_batch = init_res.next_batch
     end
 
+    local backoff = 5
     while true do
         local query = {
             timeout = 30000,
@@ -185,10 +187,11 @@ function M.poll(cfg, on_event)
                 end
             end
 
+            state.clear_backoff()
+            backoff = 5
             sleep(1)
         else
-            logger.warn("Sync failed, sleeping 5 seconds...")
-            sleep(5)
+            backoff = state.set_backoff(backoff, 900)
         end
     end
 end

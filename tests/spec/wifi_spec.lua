@@ -85,21 +85,39 @@ describe("wifi command", function()
             end
             return nil
         end
-        iwinfo_mock.nl80211.bssid = function() return "aa:bb:cc:dd:ee:ff" end
-        iwinfo_mock.nl80211.bitrate = function() return 100000 end
-        iwinfo_mock.nl80211.encryption = function() return { description = "WPA2-PSK" } end
-        iwinfo_mock.nl80211.mode = function() return "Master" end
-        iwinfo_mock.nl80211.hardware_name = function() return "Generic MAC" end
-        iwinfo_mock.nl80211.country = function() return "US" end
-        iwinfo_mock.nl80211.noise = function() return -95 end
-        iwinfo_mock.nl80211.txpower = function() return 20 end
-        iwinfo_mock.nl80211.frequency = function() return 2412 end
+        iwinfo_mock.nl80211.bssid = function()
+            return "aa:bb:cc:dd:ee:ff"
+        end
+        iwinfo_mock.nl80211.bitrate = function()
+            return 100000
+        end
+        iwinfo_mock.nl80211.encryption = function()
+            return { description = "WPA2-PSK" }
+        end
+        iwinfo_mock.nl80211.mode = function()
+            return "Master"
+        end
+        iwinfo_mock.nl80211.hardware_name = function()
+            return "Generic MAC"
+        end
+        iwinfo_mock.nl80211.country = function()
+            return "US"
+        end
+        iwinfo_mock.nl80211.noise = function()
+            return -95
+        end
+        iwinfo_mock.nl80211.txpower = function()
+            return 20
+        end
+        iwinfo_mock.nl80211.frequency = function()
+            return 2412
+        end
 
         local cfg = {
             features = {
                 wifi_detailed = true,
-                wifi_show_key = true
-            }
+                wifi_show_key = true,
+            },
         }
 
         local result = wifi.execute("wifi_info", "", cfg)

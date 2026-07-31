@@ -45,8 +45,8 @@ describe("e2ee transport", function()
         assert.is_true("ssh" == args[1])
         local last_arg = args[#args]
         assert.matches("--html", last_arg)
-        local expected = "matrix%-cli %-%-mode send %-%-rooms " ..
-                         "'!room1:matrix.example' %-%-message 'Hello World' %-%-html"
+        local expected = "matrix%-cli %-%-mode send %-%-rooms "
+            .. "'!room1:matrix.example' %-%-message 'Hello World' %-%-html"
         assert.matches(expected, last_arg)
     end)
 
@@ -73,9 +73,9 @@ describe("e2ee transport", function()
     it("should gracefully parse dirty JSON responses from matrix-cli", function()
         nixio_mock.next_fork_results = { 123 }
 
-        local dirty_json = "Warning: Permanently added '192.168.1.10' to the list of known hosts.\\n" ..
-                           "Welcome to Ubuntu 20.04!\\n" ..
-                           "[ { \"room_id\": \"!room1:matrix.example\", \"encrypted\": true } ]\\n"
+        local dirty_json = "Warning: Permanently added '192.168.1.10' to the list of known hosts.\\n"
+            .. "Welcome to Ubuntu 20.04!\\n"
+            .. '[ { "room_id": "!room1:matrix.example", "encrypted": true } ]\\n'
 
         local read_count = 0
         local old_pipe = nixio_mock.pipe
@@ -102,7 +102,7 @@ describe("e2ee transport", function()
             return old_decode(str)
         end
 
-        local result = e2ee.get_rooms_encryption_status(cfg, {"!room1:matrix.example"})
+        local result = e2ee.get_rooms_encryption_status(cfg, { "!room1:matrix.example" })
 
         cjson_mock.decode = old_decode
         nixio_mock.pipe = old_pipe
@@ -113,7 +113,7 @@ describe("e2ee transport", function()
         end
     end)
 
-    it("should exponentially backoff and exit when SSH fails to connect repeatedly", function()
+    it("should exponentially backoff when SSH fails to connect", function()
         nixio_mock.next_fork_results = { 123, 123, 123, 123, 123, 123, 123 }
 
         local original_exit = os.exit
@@ -124,12 +124,30 @@ describe("e2ee transport", function()
         end)
 
         local original_time = os.time
-        rawset(os, "time", function() return 10000 end)
+        rawset(os, "time", function()
+            return 10000
+        end)
+
+        local iteration = 0
+        local old_pipe = nixio_mock.pipe
+        ---@diagnostic disable-next-line: duplicate-set-field
+        nixio_mock.pipe = function()
+            local r, w = old_pipe()
+            r.read = function()
+                iteration = iteration + 1
+                if iteration == 6 then
+                    return "Permission denied (publickey).\n"
+                end
+                return nil
+            end
+            return r, w
+        end
 
         local _, err = pcall(function()
             e2ee.poll(cfg, function() end)
         end)
 
+        nixio_mock.pipe = old_pipe
         rawset(os, "time", original_time)
         rawset(os, "exit", original_exit)
 

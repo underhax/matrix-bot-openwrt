@@ -55,14 +55,8 @@ describe("security utils", function()
     end)
 
     it("uses encrypted placeholder for hidden HTTP payloads", function()
-        local ok = security.authorize_sender(
-            cfg,
-            transport,
-            "!control:matrix.example",
-            "@intruder:matrix.example",
-            "",
-            true
-        )
+        local ok =
+            security.authorize_sender(cfg, transport, "!control:matrix.example", "@intruder:matrix.example", "", true)
 
         assert.is_false(ok)
         assert.are.equal(1, #sent_messages)
@@ -70,14 +64,8 @@ describe("security utils", function()
     end)
 
     it("uses empty placeholder for missing non-encrypted payloads", function()
-        local ok = security.authorize_sender(
-            cfg,
-            transport,
-            "!control:matrix.example",
-            "@intruder:matrix.example",
-            nil,
-            false
-        )
+        local ok =
+            security.authorize_sender(cfg, transport, "!control:matrix.example", "@intruder:matrix.example", nil, false)
 
         assert.is_false(ok)
         assert.are.equal(1, #sent_messages)

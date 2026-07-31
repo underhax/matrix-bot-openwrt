@@ -52,7 +52,16 @@ status.cfgvalue = function(_self, _section)
     if running then
         local fs = require("nixio.fs")
         local stat = fs.stat("/var/run/matrixbot_poller.pid")
-        if stat and stat.mtime then
+        local backoff_stat = fs.stat("/tmp/matrixbot_backoff")
+
+        if backoff_stat then
+            local backoff_sec = fs.readfile("/tmp/matrixbot_backoff") or "?"
+            stat_str = '<span style="color:orange;font-weight:bold">'
+                .. translate("Connection Lost. Backoff: ")
+                .. backoff_sec
+                .. translate("s")
+                .. "</span>"
+        elseif stat and stat.mtime then
             local diff = os.time() - stat.mtime
             local m = math.floor(diff / 60)
             local h = math.floor(m / 60)

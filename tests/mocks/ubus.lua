@@ -29,10 +29,10 @@ function mock.connect()
                             interface = "lan",
                             l3_device = "br-lan",
                             ["ipv4-address"] = {
-                                { address = "192.168.1.1", mask = 24 }
-                            }
-                        }
-                    }
+                                { address = "192.168.1.1", mask = 24 },
+                            },
+                        },
+                    },
                 }
             elseif namespace == "dhcp" and method == "ipv6leases" then
                 return {
@@ -41,10 +41,10 @@ function mock.connect()
                             {
                                 hostname = "Desktop",
                                 address = "2001:db8::101",
-                                duid = "00010001"
-                            }
-                        }
-                    }
+                                duid = "00010001",
+                            },
+                        },
+                    },
                 }
             end
             return nil

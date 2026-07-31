@@ -81,4 +81,10 @@ function nixio.socket(domain, type) end
 ---@param message string
 function nixio.syslog(priority, message) end
 
+---@param host string
+---@param family string?
+---@param service string?
+---@return table|nil addresses
+function nixio.getaddrinfo(host, family, service) end
+
 return nixio

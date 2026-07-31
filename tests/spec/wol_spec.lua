@@ -10,8 +10,8 @@ describe("wol command", function()
         cfg = {
             features = {
                 mac_pc = "aa:bb:cc:dd:ee:ff",
-                wol_interfaces = { "br-lan" }
-            }
+                wol_interfaces = { "br-lan" },
+            },
         }
     end)
 

@@ -1,6 +1,34 @@
 local nixio = require("nixio")
 local cjson = require("cjson")
 local logger = require("matrixbot.utils.logger")
+local state = require("matrixbot.utils.state")
+
+local function handle_ssh_error(error_buffer)
+    if not error_buffer then
+        return
+    end
+    local is_fatal = error_buffer:match("Permission denied")
+        or error_buffer:match("Host key verification failed")
+        or error_buffer:match("not accessible")
+
+    if error_buffer:match("Could not resolve hostname") then
+        local dns_alive = false
+        for _, domain in ipairs({ "google.com", "cloudflare.com", "openwrt.org" }) do
+            if nixio.getaddrinfo(domain, "inet") then
+                dns_alive = true
+                break
+            end
+        end
+        if dns_alive then
+            is_fatal = true
+        end
+    end
+
+    if is_fatal then
+        logger.error("FATAL SSH ERROR:\n" .. error_buffer)
+        os.exit(1)
+    end
+end
 
 local M = {}
 
@@ -50,61 +78,67 @@ function M.get_rooms_encryption_status(cfg, rooms_list)
 
     local mc_cmd = build_mc_cmd(string.format("--mode room-info --rooms %s 2>/dev/null", shell_quote(rooms_arg)), cfg)
 
-    local pin, pout = nixio.pipe()
-    local pid = nixio.fork()
+    local backoff = 5
+    while true do
+        local pin, pout = nixio.pipe()
+        if not pin then
+            logger.error("Failed to create pipe in get_rooms_encryption_status")
+            backoff = state.set_backoff(backoff, 900)
+        else
+            local pid = nixio.fork()
+            if not pid then
+                logger.error("Failed to fork in get_rooms_encryption_status")
+                pin:close()
+                pout:close()
+                backoff = state.set_backoff(backoff, 900)
+            elseif pid == 0 then
+                pin:close()
+                nixio.dup(pout, nixio.stdout)
+                nixio.dup(pout, nixio.stderr)
+                pout:close()
 
-    if pid == 0 then
-        pin:close()
-        nixio.dup(pout, nixio.stdout)
-        pout:close()
+                local args = build_ssh_args(cfg, mc_cmd, "-T")
+                nixio.execp("ssh", unpack(args, 2))
+                os.exit(1)
+            else
+                pout:close()
 
-        local args = build_ssh_args(cfg, mc_cmd, "-T")
-        nixio.execp("ssh", unpack(args, 2))
-        os.exit(1)
-    elseif pid then
-        pout:close()
-
-        local buffer = ""
-        while true do
-            local chunk = pin:read(4096)
-            if not chunk or #chunk == 0 then
-                break
-            end
-            buffer = buffer .. chunk
-        end
-        pin:close()
-        nixio.waitpid(pid)
-
-        local json_start = buffer:find("%[%s*{")
-        if not json_start then
-            return nil
-        end
-
-        local ok, data = pcall(cjson.decode, buffer:sub(json_start))
-        if ok and type(data) == "table" then
-            local result = {}
-            for _, item in ipairs(data) do
-                if item.room_id and item.encrypted ~= nil then
-                    result[item.room_id] = item.encrypted
+                local buffer = ""
+                while true do
+                    local chunk = pin:read(4096)
+                    if not chunk or #chunk == 0 then
+                        break
+                    end
+                    buffer = buffer .. chunk
                 end
+                pin:close()
+                nixio.waitpid(pid)
+
+                local json_start = buffer:find("%[%s*{")
+                if json_start then
+                    local ok, data = pcall(cjson.decode, buffer:sub(json_start))
+                    if ok and type(data) == "table" then
+                        local result = {}
+                        for _, item in ipairs(data) do
+                            if item.room_id and item.encrypted ~= nil then
+                                result[item.room_id] = item.encrypted
+                            end
+                        end
+                        state.clear_backoff()
+                        return result
+                    end
+                end
+
+                handle_ssh_error(buffer)
+                backoff = state.set_backoff(backoff, 900)
             end
-            return result
         end
     end
-
-    if pin then
-        pcall(pin.close, pin)
-    end
-    if pout then
-        pcall(pout.close, pout)
-    end
-    return nil
 end
 
 function M.poll(cfg, on_event)
     local start_time = os.time()
     local backoff = 5
-    local max_backoff = 120
     local processed_events = {}
 
     local mc_cmd = build_mc_cmd("--mode listen 2>/dev/null", cfg)
@@ -136,6 +170,7 @@ function M.poll(cfg, on_event)
         if pid == 0 then
             pin:close()
             nixio.dup(pout, nixio.stdout)
+            nixio.dup(pout, nixio.stderr)
             pout:close()
 
             local args = {
@@ -168,6 +203,7 @@ function M.poll(cfg, on_event)
             local session_start = os.time()
             local connected = false
 
+            local error_buffer = ""
             local buffer = ""
             while true do
                 local chunk, _ = pin:read(4096)
@@ -185,7 +221,10 @@ function M.poll(cfg, on_event)
                     line = line:gsub("\r", "")
 
                     if line:sub(1, 1) == "{" then
-                        connected = true
+                        if not connected then
+                            connected = true
+                            state.clear_backoff()
+                        end
                         logger.debug("RAW SSH JSON: " .. line)
                         local ok, json = pcall(cjson.decode, line)
                         if ok and json and json.room_id and json.sender and json.content and json.content.body then
@@ -214,6 +253,10 @@ function M.poll(cfg, on_event)
                                 end
                             end
                         end
+                    else
+                        if os.time() - session_start < 5 then
+                            error_buffer = error_buffer .. line .. "\n"
+                        end
                     end
                 end
             end
@@ -230,15 +273,8 @@ function M.poll(cfg, on_event)
                 logger.info("SSH session ended (duration: " .. tostring(session_duration) .. "s). Resetting backoff.")
                 backoff = 5
             else
-                logger.warn(
-                    "SSH listener closed without receiving events, backing off for " .. tostring(backoff) .. "s"
-                )
-                nixio.nanosleep(backoff, 0)
-                backoff = backoff * 2
-                if backoff > max_backoff then
-                    logger.error("FATAL: Max SSH retries reached. Exiting poller.")
-                    os.exit(1)
-                end
+                handle_ssh_error(error_buffer)
+                backoff = state.set_backoff(backoff, 900)
             end
         end
     end
@@ -276,14 +312,8 @@ function M.send_message_async(cfg, room_id, text)
 end
 
 function M.send_message(cfg, room_id, text)
-    local mc_cmd = build_mc_cmd(
-        string.format(
-            "--mode send --rooms %s --message %s --html 2>/dev/null",
-            shell_quote(room_id),
-            shell_quote(text)
-        ),
-        cfg
-    )
+    local fmt = "--mode send --rooms %s --message %s --html 2>/dev/null"
+    local mc_cmd = build_mc_cmd(string.format(fmt, shell_quote(room_id), shell_quote(text)), cfg)
 
     local pin, pout = nixio.pipe()
     if not pin then
