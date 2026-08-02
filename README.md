@@ -218,7 +218,7 @@ You can offload the heavy lifting to an external host via an SSH tunnel (**Remot
   ```
 
 #### Local Binary
-- Runs `matrix-cli` directly on OpenWrt *(Currently, only `mipsel` softfloat architectures are supported)*.
+- Runs `matrix-cli` directly on OpenWrt *(Supports multiple architectures including ARM, AArch64, MIPS, MIPSEL, and x86_64)*.
 
 > [!WARNING]
 > `matrix-cli` continuously updates its SQLite encryption database. You need to specify a path in the **Local Data Directory** field. To prevent flash storage wear, it is highly recommended to point this to a USB mount (e.g. `/mnt/usb/matrix-cli`), unless you are using extroot, in which case you can use a standard path like `/etc/matrix-cli`.

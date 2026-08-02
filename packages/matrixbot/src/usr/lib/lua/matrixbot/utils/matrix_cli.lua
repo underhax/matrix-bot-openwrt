@@ -4,6 +4,10 @@ local M = {}
 
 local SUPPORTED_PLATFORMS = {
     ["mipsle"] = "matrix-cli-linux-mipsle-softfloat.tar.gz",
+    ["mips"] = "matrix-cli-linux-mips-softfloat.tar.gz",
+    ["arm64"] = "matrix-cli-linux-arm64.tar.gz",
+    ["armv7"] = "matrix-cli-linux-armv7.tar.gz",
+    ["amd64"] = "matrix-cli-linux-amd64.tar.gz",
 }
 
 function M.get_arch()
@@ -26,6 +30,14 @@ function M.get_arch()
 
     if arch:match("^mipsel") then
         return "mipsle"
+    elseif arch:match("^mips") then
+        return "mips"
+    elseif arch:match("^aarch64") then
+        return "arm64"
+    elseif arch:match("^arm") then
+        return "armv7"
+    elseif arch:match("^x86_64") then
+        return "amd64"
     end
     return arch
 end
