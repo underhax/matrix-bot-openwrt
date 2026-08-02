@@ -6,6 +6,10 @@ local sink = {}
 ---@return function
 function sink.table(t) end
 
+---@param f file*
+---@return function
+function sink.file(f) end
+
 ---@class ltn12_source
 local source = {}
 ---@param str string

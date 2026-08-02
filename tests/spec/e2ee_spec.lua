@@ -15,6 +15,7 @@ describe("e2ee transport", function()
     before_each(function()
         cfg = {
             e2ee = {
+                mode = "ssh",
                 ssh_host = "192.168.1.10",
                 ssh_port = "22",
                 ssh_user = "router",
@@ -45,7 +46,7 @@ describe("e2ee transport", function()
         assert.is_true("ssh" == args[1])
         local last_arg = args[#args]
         assert.matches("--html", last_arg)
-        local expected = "matrix%-cli %-%-mode send %-%-rooms "
+        local expected = "matrix%-cli %-%-mode send %-%-json %-%-rooms "
             .. "'!room1:matrix.example' %-%-message 'Hello World' %-%-html"
         assert.matches(expected, last_arg)
     end)
@@ -163,5 +164,37 @@ describe("e2ee transport", function()
         assert.are.equal(20, nixio_mock.nanosleep_calls[3].sec)
         assert.are.equal(40, nixio_mock.nanosleep_calls[4].sec)
         assert.are.equal(80, nixio_mock.nanosleep_calls[5].sec)
+    end)
+
+    it("should build correct local_bin commands in send_message_async", function()
+        cfg.e2ee.mode = "local"
+        cfg.e2ee.local_bin = "/usr/bin/matrix-cli"
+        cfg.e2ee.local_data_dir = "/mnt/sda1/data"
+        nixio_mock.next_fork_results = { 0, 0 }
+
+        local original_exit = os.exit
+        local exit_called = false
+        rawset(os, "exit", function(_code)
+            exit_called = true
+        end)
+
+        e2ee.send_message_async(cfg, "!room1:matrix.example", "Hello Local")
+
+        rawset(os, "exit", original_exit)
+
+        assert.is_true(exit_called)
+        assert.is_true(1 == #nixio_mock.exec_calls)
+        local args = nixio_mock.exec_calls[1]
+        assert.is_true("/usr/bin/matrix-cli" == args[1])
+        assert.are.equal("-data-dir", args[2])
+        assert.are.equal("/mnt/sda1/data", args[3])
+        assert.are.equal("--mode", args[4])
+        assert.are.equal("send", args[5])
+        assert.are.equal("--json", args[6])
+        assert.are.equal("--rooms", args[7])
+        assert.are.equal("!room1:matrix.example", args[8])
+        assert.are.equal("--message", args[9])
+        assert.are.equal("Hello Local", args[10])
+        assert.are.equal("--html", args[11])
     end)
 end)

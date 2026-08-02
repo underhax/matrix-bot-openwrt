@@ -35,7 +35,7 @@ A lightweight, native **Lua 5.1** bot for remote router management over the [Mat
 - **Native OpenWrt Integration**: Built on robust OpenWrt C-bindings (`ubus`, `uci`, `iwinfo`, `cjson`, etc.) for minimal CPU footprint, zero-allocation performance, and deep system interaction.
 - **Web UI Configuration**: Fully integrated with OpenWrt's **LuCI** web interface. Configure tokens, rooms, and services directly from your browser.
 - **Remote Control**: Monitor system metrics (uptime, RAM) and public WAN IP. Manage services (restart/reload), network interfaces (up/down), Wi-Fi radios (toggle/reload), Wake-on-LAN (WOL), and view detailed network clients (DHCP, ARP, IPv6, Wi-Fi) directly from chat.
-- **Dual Transport Architecture**: Choose between a high-security E2EE version (via SSH) or a lightweight HTTP-only version.
+- **Dual Transport Architecture**: Choose between a high-security E2EE version (via SSH or Local Binary) or a lightweight HTTP-only version.
 - **Standalone Sender**: The CLI notification script (`matrix_send`) can be used independently in your crontabs or custom scripts to push alerts to Matrix (with auto-fallback from E2EE to HTTP).
 - **Security-First**: Unauthorized access attempts trigger instant security alerts to a dedicated Admin Room. Managed natively by `procd`.
 
@@ -189,7 +189,7 @@ The recommended way to configure the bot is through the OpenWrt Web GUI.
 1. Open your router's LuCI web interface in your browser. *(Note: If the menu doesn't appear immediately after installation, log out and log back in to clear the LuCI cache).*
 2. Navigate to **Services → Matrix Bot**.
 3. Fill in your Matrix URL, Access Token, Bot User, Admin User, and Room IDs. *(See [Obtaining an Access Token](#matrix-setup) if you are unsure about your Matrix URL).*
-4. If using **E2EE**, enable it and provide your SSH credentials.
+4. If using **E2EE**, enable it and select your execution mode (**Remote SSH** or **Local Binary**). Provide credentials or binary paths accordingly. *(Note: If using Local Binary mode, please read the [storage warnings below](#local-binary)).*
 5. Configure optional features such as **Start Delay** (to wait for network on boot), **Allowed Services** (for the `restart` command), **WOL PC MAC**, **WOL Interfaces**, and Wi-Fi preferences.
 6. Click **Save & Apply**. The `procd` daemon will automatically reload the bot with the new settings.
 
@@ -199,8 +199,11 @@ The recommended way to configure the bot is through the OpenWrt Web GUI.
 
 ## Transport Methods
 
-### Method A: E2EE (Maximum Security)
-Recommended for privacy. Uses End-to-End Encryption (E2EE) via an SSH tunnel to an external host running [`matrix-cli`](https://github.com/underhax/matrix-cli).
+### Method A: E2EE (SSH Tunnel or Local Binary)
+Recommended for privacy. Uses End-to-End Encryption (E2EE) by executing [`matrix-cli`](https://github.com/underhax/matrix-cli).
+You can offload the heavy lifting to an external host via an SSH tunnel (**Remote SSH**), or run `matrix-cli` natively on your router (**Local Binary**).
+
+#### Remote SSH
 - **External Host**: A VPS, Raspberry Pi, or Docker container running `matrix-cli` logged into the bot account.
 - **Key Setup**: Generate an SSH key on your router (`ssh-keygen -t ed25519 -f /root/.ssh/router-matrix`) and add the public key to your external host.
 - **Verification**: After configuring the bot in LuCI, you must save the remote host's signature securely before enabling the service:
@@ -213,6 +216,12 @@ Recommended for privacy. Uses End-to-End Encryption (E2EE) via an SSH tunnel to 
       "$(uci -q get matrixbot.e2ee.ssh_user)@$(uci -q get matrixbot.e2ee.ssh_host)" exit 2>&1 && \
   printf "Host key saved.\n" && chmod 600 /etc/matrix_bot_known_hosts
   ```
+
+#### Local Binary
+- Runs `matrix-cli` directly on OpenWrt *(Currently, only `mipsel` softfloat architectures are supported)*.
+
+> [!WARNING]
+> `matrix-cli` continuously updates its SQLite encryption database. You need to specify a path in the **Local Data Directory** field. To prevent flash storage wear, it is highly recommended to point this to a USB mount (e.g. `/mnt/usb/matrix-cli`), unless you are using extroot, in which case you can use a standard path like `/etc/matrix-cli`.
 
 ### Method B: HTTP (Simple)
 Communicates directly with the Matrix API. Best for unencrypted rooms or when you cannot maintain an external host.

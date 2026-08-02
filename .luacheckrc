@@ -4,7 +4,7 @@ stds.openwrt = {
       -- LuCI / OpenWrt specifics
       "luci", "nixio", "cjson", "iwinfo", "ubus", "uci", "unpack",
       "entry", "cbi", "_", "translate", "Map", "NamedSection",
-      "Value", "DummyValue", "DynamicList", "Flag", "module", "package", "index"
+      "Value", "DummyValue", "DynamicList", "Flag", "ListValue", "module", "package", "index"
    },
 }
 

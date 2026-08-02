@@ -16,6 +16,7 @@
       "DummyValue",
       "DynamicList",
       "Flag",
+      "ListValue",
       "module",
       "package",
       "index",

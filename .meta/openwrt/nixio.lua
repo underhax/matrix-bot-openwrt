@@ -72,6 +72,22 @@ function nixio.fs.dir(path) end
 ---@return boolean
 function nixio.fs.access(path, mode) end
 
+---@param path string
+---@param mode number
+---@return boolean
+function nixio.fs.mkdir(path, mode) end
+
+---@param path string
+---@param mode number
+---@return boolean
+function nixio.fs.chmod(path, mode) end
+
+---@param path string
+---@param uid number
+---@param gid number
+---@return boolean
+function nixio.fs.chown(path, uid, gid) end
+
 ---@param domain string
 ---@param type string
 ---@return any sock
@@ -86,5 +102,39 @@ function nixio.syslog(priority, message) end
 ---@param service string?
 ---@return table|nil addresses
 function nixio.getaddrinfo(host, family, service) end
+
+---@class nixio_passwd
+---@field uid number
+---@field gid number
+---@field name string
+---@field dir string
+---@field shell string
+---@field passwd string
+
+---@param user any
+---@return nixio_passwd|nil
+function nixio.getpwnam(user) end
+
+---@param mask number|string
+---@return number oldmask
+function nixio.umask(mask) end
+
+---@param uid number|string
+---@return boolean
+function nixio.setuid(uid) end
+
+---@param gid number|string
+---@return boolean
+function nixio.setgid(gid) end
+
+---@class nixio_uname
+---@field sysname string
+---@field nodename string
+---@field release string
+---@field version string
+---@field machine string
+
+---@return nixio_uname
+function nixio.uname() end
 
 return nixio

@@ -168,7 +168,6 @@ local function start_poller(cfg, transport)
     local pid = nixio.fork()
     if pid == 0 then
         logger.info("Starting Matrix Poller (PID: " .. tostring(nixio.getpid()) .. ")")
-
         local ok, err = pcall(function()
             transport.poll(cfg, function(room_id, event)
                 on_event(cfg, transport, room_id, event)
@@ -185,7 +184,15 @@ local function start_poller(cfg, transport)
 end
 
 local function init_encryption_cache(cfg)
-    logger.info("Initializing: Checking room encryption status via API...")
+    local check_method = "API..."
+    if cfg.e2ee and cfg.e2ee.enabled then
+        if cfg.e2ee.mode == "ssh" then
+            check_method = "E2EE/SSH..."
+        else
+            check_method = "E2EE/LOCAL..."
+        end
+    end
+    logger.info("Initializing: Checking room encryption status via " .. check_method)
     local http = require("matrixbot.transport.http")
     cfg.rooms_encryption = {}
 
@@ -208,14 +215,16 @@ local function init_encryption_cache(cfg)
             for room_id, _ in pairs(rooms_to_check) do
                 local encrypted = result[room_id] or false
                 cfg.rooms_encryption[room_id] = encrypted
+                local mode_str = cfg.e2ee.mode == "ssh" and "E2EE/SSH" or "E2EE/LOCAL"
                 if encrypted then
-                    logger.info("Room State [" .. room_id .. "]: 🔒 ENCRYPTED (E2EE/SSH)")
+                    logger.info("Room State [" .. room_id .. "]: 🔒 ENCRYPTED (" .. mode_str .. ")")
                 else
-                    logger.info("Room State [" .. room_id .. "]: 🔓 PLAINTEXT (E2EE/SSH)")
+                    logger.info("Room State [" .. room_id .. "]: 🔓 PLAINTEXT (" .. mode_str .. ")")
                 end
             end
         else
-            logger.error("FATAL: Failed to retrieve room encryption status via SSH/matrix-cli")
+            local err_mode = cfg.e2ee.mode == "ssh" and "SSH" or "LOCAL"
+            logger.error("FATAL: Failed to retrieve room encryption status via " .. err_mode .. "/matrix-cli")
             os.exit(1)
         end
         return
@@ -253,7 +262,7 @@ local function start()
     local transport
     if cfg.e2ee.enabled then
         transport = require("matrixbot.transport.e2ee")
-        logger.info("Transport: E2EE (SSH)")
+        logger.info("Transport: E2EE/" .. string.upper(tostring(cfg.e2ee.mode)))
     else
         transport = require("matrixbot.transport.http")
         logger.info("Transport: HTTP")

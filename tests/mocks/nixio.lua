@@ -13,8 +13,9 @@ local function clone(value)
 end
 
 local default_fs_stats = {
-    ["/root/.ssh/router-matrix"] = { uid = 0, modedec = 600 },
-    ["/etc/matrix_bot_known_hosts"] = { uid = 0, modedec = 600 },
+    ["/root/.ssh/router-matrix"] = { uid = 0, modedec = 600, type = "reg" },
+    ["/etc/matrix_bot_known_hosts"] = { uid = 0, modedec = 600, type = "reg" },
+    ["/etc/matrix-cli"] = { uid = 1000, modedec = 700, type = "dir" },
 }
 
 function mock.reset()
@@ -98,6 +99,21 @@ end
 mock.getpid = function()
     return 456
 end
+mock.getpwnam = function(user)
+    if user == "matrix-cli" then
+        return { uid = 1000, gid = 1000 }
+    end
+    return nil
+end
+mock.umask = function()
+    return 63
+end
+mock.setuid = function()
+    return true
+end
+mock.setgid = function()
+    return true
+end
 mock.O_WRONLY = 1
 mock.O_RDWR = 2
 
@@ -110,12 +126,19 @@ mock.fs = {
                 i = i + 1
                 return devs[i]
             end
+        elseif path == "/etc/matrix-cli" then
+            return function()
+                return nil
+            end
         end
         return function()
             return nil
         end
     end,
-    access = function(_path, _mode)
+    access = function(path, _mode)
+        if path == "/usr/bin/matrix-cli" then
+            return true
+        end
         return false
     end,
     stat = function(path)
@@ -124,6 +147,15 @@ mock.fs = {
             return nil
         end
         return clone(stat)
+    end,
+    mkdir = function()
+        return true
+    end,
+    chmod = function()
+        return true
+    end,
+    chown = function()
+        return true
     end,
 }
 

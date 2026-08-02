@@ -21,6 +21,16 @@ if action then
         sys.call("/etc/init.d/matrixbot enable >/dev/null 2>&1")
     elseif action == "disable" then
         sys.call("/etc/init.d/matrixbot disable >/dev/null 2>&1")
+    elseif action == "install_cli" then
+        local ok, err = require("matrixbot.utils.matrix_cli").install()
+        if not ok then
+            require("nixio.fs").writefile("/tmp/matrixbot_ui_error", tostring(err))
+        end
+    elseif action == "update_cli" then
+        local ok, err = require("matrixbot.utils.matrix_cli").update()
+        if not ok then
+            require("nixio.fs").writefile("/tmp/matrixbot_ui_error", tostring(err))
+        end
     end
     http.redirect(http.getenv("REQUEST_URI"))
 end
@@ -434,12 +444,21 @@ start_delay_option.datatype = "uinteger"
 start_delay_option.default = "30"
 start_delay_option.rmempty = true
 
-local e2ee_section = map:section(NamedSection, "e2ee", "matrixbot", translate("E2EE Settings (SSH Tunnel)"))
+local e2ee_section = map:section(NamedSection, "e2ee", "matrixbot", translate("E2EE Settings"))
 e2ee_section.anonymous = true
 e2ee_section.addremove = false
 
-local e2ee_enabled_option = e2ee_section:option(Flag, "enabled", translate("Enable E2EE (SSH Tunnel)"))
+local e2ee_enabled_option = e2ee_section:option(Flag, "enabled", translate("Enable E2EE"))
 e2ee_enabled_option.rmempty = false
+
+local mode_option = e2ee_section:option(ListValue, "mode", translate("Execution Mode"))
+mode_option:value("ssh", translate("Remote SSH"))
+mode_option:value("local", translate("Local Binary"))
+mode_option.default = "ssh"
+mode_option.rmempty = false
+
+local ssh_sep = e2ee_section:option(DummyValue, "_ssh_sep", translate("Remote SSH Configuration:"))
+ssh_sep.rawhtml = true
 
 local ssh_host_option = e2ee_section:option(Value, "ssh_host", translate("SSH Host"))
 ssh_host_option.datatype = "host"
@@ -477,6 +496,119 @@ local data_dir_option = e2ee_section:option(
 )
 data_dir_option.datatype = "string"
 data_dir_option.rmempty = true
+
+local local_sep = e2ee_section:option(DummyValue, "_local_sep", translate("Local Binary Configuration:"))
+local_sep.rawhtml = true
+
+local local_bin_option = e2ee_section:option(DummyValue, "local_bin", translate("Local Binary"))
+local_bin_option.rawhtml = true
+local_bin_option.cfgvalue = function(self, section)
+    local ok, installer = pcall(require, "matrixbot.utils.matrix_cli")
+    local installed_ver = ok and installer.get_installed_version() or nil
+    local is_supported, arch = false, "Unknown"
+    local latest_ver = nil
+
+    if ok and type(installer.is_supported_arch) == "function" then
+        is_supported, arch = installer.is_supported_arch()
+    end
+
+    if installed_ver and ok and type(installer.get_latest_version) == "function" then
+        latest_ver = installer.get_latest_version()
+    end
+
+    local ui_err = require("nixio.fs").readfile("/tmp/matrixbot_ui_error")
+    if ui_err then
+        require("nixio.fs").remove("/tmp/matrixbot_ui_error")
+        ui_err = ui_err:gsub("'", "\\'"):gsub("\n", "\\n")
+    end
+
+    local btn_text = translate("Install")
+    local btn_action = "install_cli"
+    local btn_attr = is_supported and "" or ' disabled="disabled"'
+
+    if installed_ver then
+        btn_text = translate("Update")
+        btn_action = "update_cli"
+        if latest_ver and installed_ver == latest_ver then
+            btn_attr = ' disabled="disabled"'
+        end
+    end
+
+    local html = ""
+    if ui_err then
+        html = html .. "<script>alert('Error: " .. ui_err .. "');</script>"
+    end
+
+    html = html
+        .. [[
+        <div style="display:flex;align-items:center;gap:10px;">
+            <code>/usr/bin/matrix-cli</code>
+            <button class="btn cbi-button cbi-button-apply" type="submit" name="cbid.matrixbot.main._action" value="]]
+        .. btn_action
+        .. [["]]
+        .. btn_attr
+        .. [[>]]
+        .. btn_text
+        .. [[</button>
+        </div>
+    ]]
+
+    if not is_supported then
+        html = html
+            .. string.format(
+                [[<div style="margin-top:5px;font-size:0.9em;color:red;font-weight:bold;">%s: %s</div>]],
+                translate("Unsupported Architecture"),
+                tostring(arch)
+            )
+    end
+
+    if installed_ver then
+        html = html
+            .. string.format(
+                [[<div style="margin-top:5px;font-size:0.9em;color:green;">%s: <b>%s</b></div>]],
+                translate("Installed Version"),
+                installed_ver
+            )
+        if latest_ver then
+            if installed_ver == latest_ver then
+                html = html
+                    .. string.format(
+                        [[<div style="margin-top:2px;font-size:0.9em;color:gray;">%s</div>]],
+                        translate("You have the latest version.")
+                    )
+            else
+                html = html
+                    .. string.format(
+                        [[<div style="margin-top:2px;font-size:0.9em;color:orange;font-weight:bold;">%s: %s</div>]],
+                        translate("Update Available"),
+                        latest_ver
+                    )
+            end
+        end
+    elseif is_supported then
+        html = html
+            .. string.format(
+                [[<div style="margin-top:5px;font-size:0.9em;color:red;">%s</div>]],
+                translate("Binary not installed.")
+            )
+    end
+    return html
+end
+
+local local_data_dir_option = e2ee_section:option(
+    Value,
+    "local_data_dir",
+    translate("Local Data Directory"),
+    translate(
+        "Path to the local matrix-cli data directory.<br />"
+            .. "<strong>CAUTION:</strong> Frequent SQLite database writes can cause premature flash memory wear.<br />"
+            .. "If your device does not use an extroot (extended overlay), it is highly recommended to mount a separate external storage device for this directory.<br />"
+            .. "Default path: <code>/etc/matrix-cli</code><br />"
+            .. "Example: <code>/mnt/usb/matrix-cli</code>"
+    )
+)
+local_data_dir_option.datatype = "string"
+local_data_dir_option.rmempty = false
 
 local features_section = map:section(NamedSection, "features", "matrixbot", translate("Features Configuration"))
 features_section.anonymous = true

@@ -2,6 +2,11 @@
 package.loaded["nixio"] = require("tests.mocks.nixio")
 package.loaded["nixio.fs"] = require("tests.mocks.nixio").fs
 package.loaded["uci"] = require("tests.mocks.uci")
+package.loaded["luci.sys"] = {
+    exec = function(_cmd)
+        return ""
+    end,
+}
 -- luacheck: pop
 
 local nixio_mock = require("tests.mocks.nixio")
@@ -110,10 +115,22 @@ describe("config module", function()
 
     it("accepts valid e2ee ssh configuration", function()
         uci_mock.data.matrixbot.e2ee.enabled = "1"
+        uci_mock.data.matrixbot.e2ee.mode = "ssh"
         uci_mock.data.matrixbot.e2ee.ssh_host = "192.168.1.10"
         uci_mock.data.matrixbot.e2ee.ssh_port = "22"
         uci_mock.data.matrixbot.e2ee.ssh_user = "router-admin"
         uci_mock.data.matrixbot.e2ee.ssh_key = "/root/.ssh/router-matrix"
+
+        local cfg = config.load()
+        assert.is_not_nil(cfg)
+        assert.is_table(cfg)
+    end)
+
+    it("accepts valid local mode configuration", function()
+        uci_mock.data.matrixbot.e2ee.enabled = "1"
+        uci_mock.data.matrixbot.e2ee.mode = "local"
+        uci_mock.data.matrixbot.e2ee.local_bin = "/usr/bin/matrix-cli"
+        uci_mock.data.matrixbot.e2ee.local_data_dir = "/etc/matrix-cli"
 
         local cfg = config.load()
         assert.is_not_nil(cfg)

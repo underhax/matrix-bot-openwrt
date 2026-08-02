@@ -34,5 +34,8 @@ jobs:
       - name: Run Luacheck
         run: luacheck packages/matrixbot/src/ packages/luci-app-matrixbot/
 
+      - name: Run ShellCheck
+        run: shellcheck packages/matrixbot/src/etc/init.d/matrixbot packages/matrixbot/src/etc/profile.d/matrix-cli.sh
+
       - name: Run Busted Tests
         run: LUA_PATH="./packages/matrixbot/src/usr/lib/lua/?.lua;;" busted tests/

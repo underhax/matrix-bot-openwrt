@@ -350,6 +350,76 @@ function M.validate_secure_file(path, var_name)
     return true
 end
 
+function M.validate_secure_dir(path, expected_uid, var_name)
+    if not path or path == "" then
+        logger.error(string.format("FATAL: Directory path for %s is not specified.", var_name))
+        return false
+    end
+    if type(expected_uid) ~= "number" then
+        logger.error(string.format("FATAL: expected_uid must be a number for %s.", var_name))
+        return false
+    end
+    if not fs or not fs.stat or not fs.dir then
+        logger.error(string.format("FATAL: Cannot stat or dir %s.", var_name))
+        return false
+    end
+
+    local stat = fs.stat(path)
+    if not stat then
+        logger.error(string.format("FATAL: Directory %s does not exist.", var_name))
+        return false
+    end
+
+    if stat.type ~= "dir" then
+        logger.error(string.format("FATAL: %s is not a directory.", var_name))
+        return false
+    end
+
+    if stat.uid ~= expected_uid or stat.modedec ~= 700 then
+        logger.error(string.format("FATAL: Directory %s must be owned by uid %d with mode 700.", path, expected_uid))
+        return false
+    end
+
+    local dir_iter = fs.dir(path)
+    if dir_iter then
+        for entry in dir_iter do
+            if entry ~= "." and entry ~= ".." then
+                local filepath = path .. "/" .. entry
+                local fstat = fs.stat(filepath)
+                if fstat then
+                    if fstat.type == "reg" then
+                        if fstat.uid ~= expected_uid or fstat.modedec ~= 600 then
+                            logger.error(
+                                string.format(
+                                    "FATAL: File %s in %s must be owned by uid %d with mode 600.",
+                                    entry,
+                                    path,
+                                    expected_uid
+                                )
+                            )
+                            return false
+                        end
+                    elseif fstat.type == "dir" then
+                        if fstat.uid ~= expected_uid or fstat.modedec ~= 700 then
+                            logger.error(
+                                string.format(
+                                    "FATAL: Subdirectory %s in %s must be owned by uid %d with mode 700.",
+                                    entry,
+                                    path,
+                                    expected_uid
+                                )
+                            )
+                            return false
+                        end
+                    end
+                end
+            end
+        end
+    end
+
+    return true
+end
+
 function M.validate_path_list(list, var_name)
     if not list or type(list) ~= "table" then
         return true

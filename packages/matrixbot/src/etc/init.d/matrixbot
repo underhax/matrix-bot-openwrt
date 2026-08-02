@@ -47,7 +47,9 @@ reload_service() {
 
 stop_service() {
     if [ -f "/var/run/matrixbot_ssh.pid" ]; then
-        logger -t "$NAME" "Stopping Matrix Bot (E2EE)..."
+        logger -t "$NAME" "Stopping Matrix Bot (E2EE/SSH)..."
+    elif [ -f "/var/run/matrixbot_local.pid" ]; then
+        logger -t "$NAME" "Stopping Matrix Bot (E2EE/LOCAL)..."
     else
         logger -t "$NAME" "Stopping Matrix Bot (HTTP)..."
     fi
@@ -64,6 +66,12 @@ stop_service() {
         [ -n "$spid" ] && kill -TERM "$spid" 2>/dev/null
     fi
     
+    if [ -f "/var/run/matrixbot_local.pid" ]; then
+        local lpid
+        lpid=$(cat /var/run/matrixbot_local.pid)
+        [ -n "$lpid" ] && kill -TERM "$lpid" 2>/dev/null
+    fi
+    
     sleep 1
     
     if [ -f "/var/run/matrixbot_poller.pid" ]; then
@@ -78,5 +86,12 @@ stop_service() {
         spid=$(cat /var/run/matrixbot_ssh.pid)
         [ -n "$spid" ] && kill -9 "$spid" 2>/dev/null
         rm -f /var/run/matrixbot_ssh.pid
+    fi
+
+    if [ -f "/var/run/matrixbot_local.pid" ]; then
+        local lpid
+        lpid=$(cat /var/run/matrixbot_local.pid)
+        [ -n "$lpid" ] && kill -9 "$lpid" 2>/dev/null
+        rm -f /var/run/matrixbot_local.pid
     fi
 }

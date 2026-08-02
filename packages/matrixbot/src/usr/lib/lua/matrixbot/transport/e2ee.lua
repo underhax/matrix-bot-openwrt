@@ -3,13 +3,19 @@ local cjson = require("cjson")
 local logger = require("matrixbot.utils.logger")
 local state = require("matrixbot.utils.state")
 
-local function handle_ssh_error(error_buffer)
+local function handle_transport_error(cfg, error_buffer)
     if not error_buffer then
         return
     end
     local is_fatal = error_buffer:match("Permission denied")
         or error_buffer:match("Host key verification failed")
         or error_buffer:match("not accessible")
+        or error_buffer:match("fatal")
+        or error_buffer:match("error")
+        or error_buffer:match("panic")
+        or error_buffer:match("failed")
+        or error_buffer:match("refused")
+        or error_buffer:match("denied")
 
     if error_buffer:match("Could not resolve hostname") then
         local dns_alive = false
@@ -25,7 +31,8 @@ local function handle_ssh_error(error_buffer)
     end
 
     if is_fatal then
-        logger.error("FATAL SSH ERROR:\n" .. error_buffer)
+        local error_prefix = cfg.e2ee.mode == "local" and "FATAL LOCAL MATRIX-CLI ERROR:" or "FATAL SSH ERROR:"
+        logger.error(error_prefix .. "\n" .. error_buffer)
         os.exit(1)
     end
 end
@@ -67,6 +74,42 @@ local function build_mc_cmd(base_cmd, cfg)
     return string.format("matrix-cli %s", base_cmd)
 end
 
+local function build_local_args(cfg, mode_args)
+    local args = { "/usr/bin/matrix-cli" }
+    if cfg.e2ee.local_data_dir and cfg.e2ee.local_data_dir ~= "" then
+        table.insert(args, "-data-dir")
+        table.insert(args, cfg.e2ee.local_data_dir)
+    end
+    for _, a in ipairs(mode_args) do
+        table.insert(args, a)
+    end
+    return args
+end
+
+local function exec_local(cfg, args)
+    nixio.umask(63)
+    if cfg.e2ee.run_user then
+        local uid, gid
+        local f = io.open("/etc/passwd", "r")
+        if f then
+            for line in f:lines() do
+                local u, _, i, g = line:match("^([^:]+):([^:]*):(%d+):(%d+):")
+                if u == cfg.e2ee.run_user then
+                    uid = tonumber(i)
+                    gid = tonumber(g)
+                    break
+                end
+            end
+            f:close()
+        end
+        if uid and gid and type(nixio.setgid) == "function" and type(nixio.setuid) == "function" then
+            nixio.setgid(gid)
+            nixio.setuid(uid)
+        end
+    end
+    nixio.execp("/usr/bin/matrix-cli", unpack(args, 2))
+end
+
 function M.get_rooms_encryption_status(cfg, rooms_list)
     local rooms_arg = ""
     for _, r in ipairs(rooms_list) do
@@ -76,7 +119,8 @@ function M.get_rooms_encryption_status(cfg, rooms_list)
         rooms_arg = rooms_arg .. r
     end
 
-    local mc_cmd = build_mc_cmd(string.format("--mode room-info --rooms %s 2>/dev/null", shell_quote(rooms_arg)), cfg)
+    local mc_cmd = build_mc_cmd(string.format("--mode room-info --json --rooms %s", shell_quote(rooms_arg)), cfg)
+    local local_args = build_local_args(cfg, { "--mode", "room-info", "--json", "--rooms", rooms_arg })
 
     local backoff = 5
     while true do
@@ -85,6 +129,17 @@ function M.get_rooms_encryption_status(cfg, rooms_list)
             logger.error("Failed to create pipe in get_rooms_encryption_status")
             backoff = state.set_backoff(backoff, 900)
         else
+            if cfg.e2ee.mode == "local" then
+                logger.debug("Requesting room encryption status via local matrix-cli...")
+            else
+                logger.debug(
+                    string.format(
+                        "Requesting room encryption status via SSH to %s@%s...",
+                        cfg.e2ee.ssh_user,
+                        cfg.e2ee.ssh_host
+                    )
+                )
+            end
             local pid = nixio.fork()
             if not pid then
                 logger.error("Failed to fork in get_rooms_encryption_status")
@@ -97,8 +152,12 @@ function M.get_rooms_encryption_status(cfg, rooms_list)
                 nixio.dup(pout, nixio.stderr)
                 pout:close()
 
-                local args = build_ssh_args(cfg, mc_cmd, "-T")
-                nixio.execp("ssh", unpack(args, 2))
+                if cfg.e2ee.mode == "local" then
+                    exec_local(cfg, local_args)
+                else
+                    local args = build_ssh_args(cfg, mc_cmd, "-T")
+                    nixio.execp("ssh", unpack(args, 2))
+                end
                 os.exit(1)
             else
                 pout:close()
@@ -129,7 +188,7 @@ function M.get_rooms_encryption_status(cfg, rooms_list)
                     end
                 end
 
-                handle_ssh_error(buffer)
+                handle_transport_error(cfg, buffer)
                 backoff = state.set_backoff(backoff, 900)
             end
         end
@@ -141,7 +200,8 @@ function M.poll(cfg, on_event)
     local backoff = 5
     local processed_events = {}
 
-    local mc_cmd = build_mc_cmd("--mode listen 2>/dev/null", cfg)
+    local mc_cmd = build_mc_cmd("--mode listen --json", cfg)
+    local local_args = build_local_args(cfg, { "--mode", "listen", "--json" })
 
     while true do
         local pin, pout = nixio.pipe()
@@ -151,7 +211,11 @@ function M.poll(cfg, on_event)
             return
         end
 
-        logger.debug(string.format("Spawning SSH process to %s@%s...", cfg.e2ee.ssh_user, cfg.e2ee.ssh_host))
+        if cfg.e2ee.mode == "local" then
+            logger.debug("Spawning local matrix-cli process: /usr/bin/matrix-cli")
+        else
+            logger.debug(string.format("Spawning SSH process to %s@%s...", cfg.e2ee.ssh_user, cfg.e2ee.ssh_host))
+        end
         local pid = nixio.fork()
         if not pid then
             logger.error("Failed to fork")
@@ -160,7 +224,8 @@ function M.poll(cfg, on_event)
         end
 
         if pid > 0 then
-            local f = io.open("/var/run/matrixbot_ssh.pid", "w")
+            local pid_file = cfg.e2ee.mode == "local" and "/var/run/matrixbot_local.pid" or "/var/run/matrixbot_ssh.pid"
+            local f = io.open(pid_file, "w")
             if f then
                 f:write(tostring(pid) .. "\n")
                 f:close()
@@ -173,30 +238,33 @@ function M.poll(cfg, on_event)
             nixio.dup(pout, nixio.stderr)
             pout:close()
 
-            local args = {
-                "ssh",
-                "-i",
-                cfg.e2ee.ssh_key,
-                "-p",
-                cfg.e2ee.ssh_port,
-                "-o",
-                "StrictHostKeyChecking=yes",
-                "-o",
-                "UserKnownHostsFile=/etc/matrix_bot_known_hosts",
-                "-o",
-                "ConnectTimeout=15",
-                "-o",
-                "ServerAliveInterval=5",
-                "-o",
-                "ServerAliveCountMax=2",
-                "-o",
-                "BatchMode=yes",
-                "-tt",
-                cfg.e2ee.ssh_user .. "@" .. cfg.e2ee.ssh_host,
-                mc_cmd,
-            }
-
-            nixio.execp("ssh", unpack(args, 2))
+            if cfg.e2ee.mode == "local" then
+                exec_local(cfg, local_args)
+            else
+                local args = {
+                    "ssh",
+                    "-i",
+                    cfg.e2ee.ssh_key,
+                    "-p",
+                    cfg.e2ee.ssh_port,
+                    "-o",
+                    "StrictHostKeyChecking=yes",
+                    "-o",
+                    "UserKnownHostsFile=/etc/matrix_bot_known_hosts",
+                    "-o",
+                    "ConnectTimeout=15",
+                    "-o",
+                    "ServerAliveInterval=5",
+                    "-o",
+                    "ServerAliveCountMax=2",
+                    "-o",
+                    "BatchMode=yes",
+                    "-tt",
+                    cfg.e2ee.ssh_user .. "@" .. cfg.e2ee.ssh_host,
+                    mc_cmd,
+                }
+                nixio.execp("ssh", unpack(args, 2))
+            end
             os.exit(1)
         else
             pout:close()
@@ -227,27 +295,31 @@ function M.poll(cfg, on_event)
                         end
                         logger.debug("RAW SSH JSON: " .. line)
                         local ok, json = pcall(cjson.decode, line)
-                        if ok and json and json.room_id and json.sender and json.content and json.content.body then
-                            logger.debug(
-                                "Parsed - ROOM: "
-                                    .. json.room_id
-                                    .. " | SENDER: "
-                                    .. json.sender
-                                    .. " | BODY: "
-                                    .. tostring(json.content.body)
-                            )
-                            local ts = tonumber(json.origin_server_ts)
-                            local sec = ts and math.floor(ts / 1000) or 0
+                        if ok and json then
+                            if json.level == "fatal" or json.error then
+                                logger.error("matrix-cli error: " .. tostring(json.error or "fatal error"))
+                            elseif json.room_id and json.sender and json.content and json.content.body then
+                                logger.debug(
+                                    "Parsed - ROOM: "
+                                        .. json.room_id
+                                        .. " | SENDER: "
+                                        .. json.sender
+                                        .. " | BODY: "
+                                        .. tostring(json.content.body)
+                                )
+                                local ts = tonumber(json.origin_server_ts)
+                                local sec = ts and math.floor(ts / 1000) or 0
 
-                            if sec >= start_time then
-                                if not (json.event_id and processed_events[json.event_id]) then
-                                    if json.event_id then
-                                        processed_events[json.event_id] = true
-                                    end
-                                    if json.sender ~= cfg.main.bot_user then
-                                        local ev_ok, ev_err = pcall(on_event, json.room_id, json)
-                                        if not ev_ok then
-                                            logger.error("Event handler crashed: " .. tostring(ev_err))
+                                if sec >= start_time then
+                                    if not (json.event_id and processed_events[json.event_id]) then
+                                        if json.event_id then
+                                            processed_events[json.event_id] = true
+                                        end
+                                        if json.sender ~= cfg.main.bot_user then
+                                            local ev_ok, ev_err = pcall(on_event, json.room_id, json)
+                                            if not ev_ok then
+                                                logger.error("Event handler crashed: " .. tostring(ev_err))
+                                            end
                                         end
                                     end
                                 end
@@ -263,17 +335,22 @@ function M.poll(cfg, on_event)
 
             pin:close()
 
-            logger.debug(string.format("Waiting for SSH process (PID: %d) to terminate...", pid))
+            local pid_file = cfg.e2ee.mode == "local" and "/var/run/matrixbot_local.pid" or "/var/run/matrixbot_ssh.pid"
+            local process_name = cfg.e2ee.mode == "local" and "local matrix-cli process" or "SSH process"
+            logger.debug(string.format("Waiting for %s (PID: %d) to terminate...", process_name, pid))
             nixio.waitpid(pid)
-            os.remove("/var/run/matrixbot_ssh.pid")
-            logger.debug("SSH process terminated.")
+            os.remove(pid_file)
+            logger.debug(process_name:gsub("^%l", string.upper) .. " terminated.")
 
             local session_duration = os.time() - session_start
+            local session_name = cfg.e2ee.mode == "local" and "Local session" or "SSH session"
             if connected or session_duration > 10 then
-                logger.info("SSH session ended (duration: " .. tostring(session_duration) .. "s). Resetting backoff.")
+                logger.info(
+                    session_name .. " ended (duration: " .. tostring(session_duration) .. "s). Resetting backoff."
+                )
                 backoff = 5
             else
-                handle_ssh_error(error_buffer)
+                handle_transport_error(cfg, error_buffer)
                 backoff = state.set_backoff(backoff, 900)
             end
         end
@@ -282,10 +359,24 @@ end
 
 function M.send_message_async(cfg, room_id, text)
     local mc_cmd = build_mc_cmd(
-        string.format("--mode send --rooms %s --message %s --html", shell_quote(room_id), shell_quote(text)),
+        string.format("--mode send --json --rooms %s --message %s --html", shell_quote(room_id), shell_quote(text)),
         cfg
     )
+    local local_args =
+        build_local_args(cfg, { "--mode", "send", "--json", "--rooms", room_id, "--message", text, "--html" })
 
+    if cfg.e2ee.mode == "local" then
+        logger.debug(string.format("Sending message (async) via local matrix-cli to room %s...", room_id))
+    else
+        logger.debug(
+            string.format(
+                "Sending message (async) via SSH to %s@%s for room %s...",
+                cfg.e2ee.ssh_user,
+                cfg.e2ee.ssh_host,
+                room_id
+            )
+        )
+    end
     local pid = nixio.fork()
 
     if pid == 0 then
@@ -297,8 +388,12 @@ function M.send_message_async(cfg, room_id, text)
             nixio.dup(devnull, nixio.stderr)
             devnull:close()
 
-            local args = build_ssh_args(cfg, mc_cmd, "-T")
-            nixio.execp("ssh", unpack(args, 2))
+            if cfg.e2ee.mode == "local" then
+                exec_local(cfg, local_args)
+            else
+                local args = build_ssh_args(cfg, mc_cmd, "-T")
+                nixio.execp("ssh", unpack(args, 2))
+            end
             os.exit(1)
         else
             os.exit(0)
@@ -312,14 +407,28 @@ function M.send_message_async(cfg, room_id, text)
 end
 
 function M.send_message(cfg, room_id, text)
-    local fmt = "--mode send --rooms %s --message %s --html 2>/dev/null"
+    local fmt = "--mode send --json --rooms %s --message %s --html"
     local mc_cmd = build_mc_cmd(string.format(fmt, shell_quote(room_id), shell_quote(text)), cfg)
+    local local_args =
+        build_local_args(cfg, { "--mode", "send", "--json", "--rooms", room_id, "--message", text, "--html" })
 
     local pin, pout = nixio.pipe()
     if not pin then
         return false
     end
 
+    if cfg.e2ee.mode == "local" then
+        logger.debug(string.format("Sending message via local matrix-cli to room %s...", room_id))
+    else
+        logger.debug(
+            string.format(
+                "Sending message via SSH to %s@%s for room %s...",
+                cfg.e2ee.ssh_user,
+                cfg.e2ee.ssh_host,
+                room_id
+            )
+        )
+    end
     local pid = nixio.fork()
     if pid == 0 then
         pin:close()
@@ -332,8 +441,12 @@ function M.send_message(cfg, room_id, text)
         nixio.dup(pout, nixio.stdout)
         pout:close()
 
-        local args = build_ssh_args(cfg, mc_cmd, "-T")
-        nixio.execp("ssh", unpack(args, 2))
+        if cfg.e2ee.mode == "local" then
+            exec_local(cfg, local_args)
+        else
+            local args = build_ssh_args(cfg, mc_cmd, "-T")
+            nixio.execp("ssh", unpack(args, 2))
+        end
         os.exit(1)
     elseif pid then
         pout:close()
