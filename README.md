@@ -8,13 +8,35 @@
 A lightweight, native **Lua 5.1** bot for remote router management over the [Matrix protocol](https://matrix.org/). Designed specifically for OpenWrt, providing a secure, efficient, and memory-safe way to control your router from any Matrix client.
 
 <details>
-<summary>View Screenshots</summary>
+<summary><strong>View Screenshots</strong></summary>
+
+### LuCI Web Interface & Matrix Room Interaction
 
 <table>
   <tr>
     <td width="45%" valign="top">
-      <a href=".github/images/luci.webp">
-        <img src=".github/images/luci.webp" alt="luci">
+      <a href=".github/images/luci-1.webp">
+        <img src=".github/images/luci-1.webp" alt="Service Status & Control">
+      </a>
+      <br>
+      <a href=".github/images/luci-2.webp">
+        <img src=".github/images/luci-2.webp" alt="Main Configuration">
+      </a>
+      <br>
+      <a href=".github/images/luci-3.webp">
+        <img src=".github/images/luci-3.webp" alt="E2EE Settings">
+      </a>
+      <br>
+      <a href=".github/images/luci-4.webp">
+        <img src=".github/images/luci-4.webp" alt="Remote SSH Configuration">
+      </a>
+      <br>
+      <a href=".github/images/luci-5.webp">
+        <img src=".github/images/luci-5.webp" alt="Local Binary Configuration">
+      </a>
+      <br>
+      <a href=".github/images/luci-6.webp">
+        <img src=".github/images/luci-6.webp" alt="Features Configuration">
       </a>
     </td>
     <td width="55%" valign="top">
@@ -39,7 +61,7 @@ A lightweight, native **Lua 5.1** bot for remote router management over the [Mat
 - **Standalone Sender**: The CLI notification script (`matrix_send`) can be used independently in your crontabs or custom scripts to push alerts to Matrix (with auto-fallback from E2EE to HTTP).
 - **Security-First**: Unauthorized access attempts trigger instant security alerts to a dedicated Admin Room. Managed natively by `procd`.
 
-**Compatibility:** Successfully tested on OpenWrt 25.12.5 using **Xiaomi Mi Router 3G** (and expected to work seamlessly on all newer 25.x releases).
+**Compatibility:** Successfully tested on OpenWrt 25.12.5 using **Xiaomi Mi Router 3G** (and expected to work seamlessly on all newer 25.12.x releases).
 
 ---
 
@@ -219,6 +241,13 @@ You can offload the heavy lifting to an external host via an SSH tunnel (**Remot
 
 #### Local Binary
 - Runs `matrix-cli` directly on OpenWrt *(Supports multiple architectures including ARM, AArch64, MIPS, MIPSEL, and x86_64)*.
+
+> [!NOTE]
+> **Interactive Browser Flows:** Whenever `matrix-cli` requires interactive browser confirmation directly on the router, it will generate a localhost callback link in the console (e.g., `127.0.0.1:8080`). Since `matrix-cli` automatically selects an available port, it is best to wait until the link is displayed. Then, open a **separate SSH session** (or use your SSH client's port forwarding settings) to forward that exact port to your local machine:
+> ```sh
+> ssh [-p <SSH_PORT>] [-i <PATH_TO_KEY>] -N -L <CALLBACK_PORT>:127.0.0.1:<CALLBACK_PORT> root@<ROUTER_IP>
+> ```
+> *(Replace `<CALLBACK_PORT>` with the actual port shown in your console, and adjust the SSH port, IP, and key path accordingly). Once the tunnel is active, you can open the link in your local browser.*
 
 > [!WARNING]
 > `matrix-cli` continuously updates its SQLite encryption database. You need to specify a path in the **Local Data Directory** field. To prevent flash storage wear, it is highly recommended to point this to a USB mount (e.g. `/mnt/usb/matrix-cli`), unless you are using extroot, in which case you can use a standard path like `/etc/matrix-cli`.
