@@ -99,6 +99,9 @@ end
 mock.getpid = function()
     return 456
 end
+mock.uname = function()
+    return { machine = "mips" }
+end
 mock.getpwnam = function(user)
     if user == "matrix-cli" then
         return { uid = 1000, gid = 1000 }

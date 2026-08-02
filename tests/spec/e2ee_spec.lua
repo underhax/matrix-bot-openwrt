@@ -176,9 +176,12 @@ describe("e2ee transport", function()
         local exit_called = false
         rawset(os, "exit", function(_code)
             exit_called = true
+            error("mock_exit")
         end)
 
-        e2ee.send_message_async(cfg, "!room1:matrix.example", "Hello Local")
+        pcall(function()
+            e2ee.send_message_async(cfg, "!room1:matrix.example", "Hello Local")
+        end)
 
         rawset(os, "exit", original_exit)
 
@@ -196,5 +199,37 @@ describe("e2ee transport", function()
         assert.are.equal("--message", args[9])
         assert.are.equal("Hello Local", args[10])
         assert.are.equal("--html", args[11])
+    end)
+
+    it("should build correct local_bin command in get_rooms_encryption_status", function()
+        cfg.e2ee.mode = "local"
+        cfg.e2ee.local_bin = "/usr/bin/matrix-cli"
+        cfg.e2ee.local_data_dir = "/mnt/sda1/data"
+        nixio_mock.next_fork_results = { 0, 0 }
+
+        local original_exit = os.exit
+        local exit_called = false
+        rawset(os, "exit", function(_code)
+            exit_called = true
+            error("mock_exit")
+        end)
+
+        pcall(function()
+            e2ee.get_rooms_encryption_status(cfg, { "!room1:matrix.example" })
+        end)
+
+        rawset(os, "exit", original_exit)
+
+        assert.is_true(exit_called)
+        assert.is_true(1 == #nixio_mock.exec_calls)
+        local args = nixio_mock.exec_calls[1]
+        assert.is_true("/usr/bin/matrix-cli" == args[1])
+        assert.are.equal("-data-dir", args[2])
+        assert.are.equal("/mnt/sda1/data", args[3])
+        assert.are.equal("--mode", args[4])
+        assert.are.equal("room-info", args[5])
+        assert.are.equal("--json", args[6])
+        assert.are.equal("--rooms", args[7])
+        assert.are.equal("!room1:matrix.example", args[8])
     end)
 end)

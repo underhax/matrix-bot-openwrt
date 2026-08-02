@@ -9,7 +9,8 @@ matrix_cli() {
     MATRIX_CLI_USER=$(uci -q get matrixbot.e2ee.run_user)
     [ -z "$MATRIX_CLI_USER" ] && MATRIX_CLI_USER="matrix-cli"
 
-    lua - "$MATRIX_CLI_USER" "$MATRIX_CLI_DATA_DIR" "$@" << 'EOF'
+    local LUA_SCRIPT="/tmp/matrix_cli_wrapper_$$.lua"
+    cat << 'EOF' > "$LUA_SCRIPT"
         local uid, gid
         local f = io.open("/etc/passwd", "r")
         if f then
@@ -48,6 +49,11 @@ matrix_cli() {
         
         nixio.execp(unpack(exec_args))
 EOF
+
+    lua "$LUA_SCRIPT" "$MATRIX_CLI_USER" "$MATRIX_CLI_DATA_DIR" "$@"
+    local ret=$?
+    rm -f "$LUA_SCRIPT"
+    return $ret
 }
 
 alias matrix-cli='matrix_cli'
