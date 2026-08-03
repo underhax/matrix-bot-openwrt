@@ -1,4 +1,3 @@
--- luacheck: ignore 212 631
 local map = Map(
     "matrixbot",
     translate("Matrix Bot"),
@@ -6,8 +5,39 @@ local map = Map(
         .. [[<style>.cbi-value-field input[type="text"], ]]
         .. [[.cbi-value-field input[type="password"] { min-width: 350px !important; }</style>]]
 )
+
+local validation_errors = {}
+
+local function add_validation_error(_section_title, field_title, value, err_desc)
+    local val_str = value
+    if field_title:match("Token") or field_title:match("Password") then
+        val_str = "<hidden>"
+    elseif type(value) == "table" then
+        val_str = table.concat(value, ", ")
+    elseif not value or value == "" then
+        val_str = "<empty>"
+    end
+
+    local msg = string.format("Field: %s\nValue: %s\n\nDescription: %s", field_title, val_str, err_desc)
+    table.insert(validation_errors, msg)
+end
+
+local orig_render = map.render
+function map.render(self, ...)
+    if #validation_errors > 0 then
+        local js_msgs = "ERROR\n\n"
+            .. table.concat(validation_errors, "\n\n----------------------------------------\n\n")
+        js_msgs = js_msgs:gsub("\\", "\\\\"):gsub("'", "\\'"):gsub("\n", "\\n")
+        self.description = self.description
+            .. string.format([[<script>setTimeout(function(){ alert('%s'); }, 100);</script>]], js_msgs)
+        self.description = self.description .. [[<style>.cbi-section-error { display: none !important; }</style>]]
+    end
+    return orig_render(self, ...)
+end
+
 local sys = require("luci.sys")
 local http = require("luci.http")
+local has_validator, validator = pcall(require, "matrixbot.utils.validator")
 
 local action = http.formvalue("cbid.matrixbot.main._action")
 if action then
@@ -100,7 +130,6 @@ end
 
 local control = control_section:option(DummyValue, "_control", translate("Service Control"))
 control.rawhtml = true
--- luacheck: push ignore 631
 control.cfgvalue = function(_self, _section)
     local running = (sys.call("/etc/init.d/matrixbot running >/dev/null 2>&1") == 0)
     local enabled = (sys.call("/etc/init.d/matrixbot enabled >/dev/null 2>&1") == 0)
@@ -111,227 +140,66 @@ control.cfgvalue = function(_self, _section)
     local d_dis = enabled and "" or " disabled"
 
     return [[
-        <button class="btn cbi-button cbi-button-apply" type="submit" name="cbid.matrixbot.main._action" value="start"]] .. d_start .. [[>]] .. translate(
-        "Start"
-    ) .. [[</button>
-        <button class="btn cbi-button cbi-button-apply" type="submit" name="cbid.matrixbot.main._action" value="restart"]] .. d_stop .. [[>]] .. translate(
-        "Restart"
-    ) .. [[</button>
-        <button class="btn cbi-button cbi-button-remove" type="submit" name="cbid.matrixbot.main._action" value="stop"]] .. d_stop .. [[>]] .. translate(
-        "Stop"
-    ) .. [[</button>
+        <button class="btn cbi-button cbi-button-apply" type="submit" name="cbid.matrixbot.main._action" ]]
+        .. [[value="start"]] .. d_start .. [[>]] .. translate("Start") .. [[</button>
+        <button class="btn cbi-button cbi-button-apply" type="submit" name="cbid.matrixbot.main._action" ]]
+        .. [[value="restart"]] .. d_stop .. [[>]] .. translate("Restart") .. [[</button>
+        <button class="btn cbi-button cbi-button-remove" type="submit" name="cbid.matrixbot.main._action" ]]
+        .. [[value="stop"]] .. d_stop .. [[>]] .. translate("Stop") .. [[</button>
         <span style="margin: 0 10px;"></span>
-        <button class="btn cbi-button cbi-button-apply" type="submit" name="cbid.matrixbot.main._action" value="enable"]] .. d_en .. [[>]] .. translate(
-        "Enable"
-    ) .. [[</button>
-        <button class="btn cbi-button cbi-button-remove" type="submit" name="cbid.matrixbot.main._action" value="disable"]] .. d_dis .. [[>]] .. translate(
-        "Disable"
-    ) .. [[</button>
+        <button class="btn cbi-button cbi-button-apply" type="submit" name="cbid.matrixbot.main._action" ]]
+        .. [[value="enable"]] .. d_en .. [[>]] .. translate("Enable") .. [[</button>
+        <button class="btn cbi-button cbi-button-remove" type="submit" name="cbid.matrixbot.main._action" ]]
+        .. [[value="disable"]] .. d_dis .. [[>]] .. translate("Disable") .. [[</button>
     ]]
-end
--- luacheck: pop
-
-local function validate_matrix_localpart(value)
-    if value:match("[^%w%.%_%=/%-]") then
-        return nil, translate("Localpart contains invalid characters")
-    end
-    return value
-end
-
-local function validate_matrix_user_id(self, value, section)
-    if not value or value == "" then
-        return value
-    end
-    if value:sub(1, 1) ~= "@" then
-        return nil, translate("Must start with '@'")
-    end
-
-    local body = value:sub(2)
-    local localpart, serverpart = body:match("^([^:]+):(.+)$")
-    if not localpart or not serverpart then
-        return nil, translate("Invalid format. Expected: @localpart:server")
-    end
-
-    local ok, err = validate_matrix_localpart(localpart)
-    if not ok then
-        return nil, err
-    end
-
-    return value
-end
-
-local function validate_matrix_room_id(self, value, section)
-    if not value or value == "" then
-        return value
-    end
-    if value:sub(1, 1) ~= "!" then
-        return nil, translate("Must start with '!'")
-    end
-
-    local body = value:sub(2)
-    local localpart = body
-    if body:find(":", 1, true) then
-        local matched_localpart, serverpart = body:match("^([^:]+):(.+)$")
-        if not matched_localpart or not serverpart then
-            return nil, translate("Invalid format. Expected: !localpart or !localpart:server")
-        end
-        localpart = matched_localpart
-    end
-
-    local ok, err = validate_matrix_localpart(localpart)
-    if not ok then
-        return nil, err
-    end
-
-    return value
 end
 
 local main_section = map:section(NamedSection, "main", "matrixbot", translate("Main Configuration"))
 main_section.anonymous = true
 main_section.addremove = false
 
-local function validate_ipv4(ip)
-    local octets = { ip:match("^(%d+)%.(%d+)%.(%d+)%.(%d+)$") }
-    if #octets ~= 4 then
-        return false
-    end
-    for _, octet in ipairs(octets) do
-        local n = tonumber(octet)
-        if not n or n > 255 then
-            return false
-        end
-    end
-    return true
-end
-
-local function validate_ipv6(ip)
-    if ip:sub(1, 1) == "[" and ip:sub(-1) == "]" then
-        ip = ip:sub(2, -2)
-    end
-    if ip == "" then
-        return false
-    end
-
-    local _, double_colon_count = ip:gsub("::", "")
-    if double_colon_count > 1 then
-        return false
-    end
-
-    local groups = {}
-    for group in (ip .. ":"):gmatch("([^:]*):") do
-        groups[#groups + 1] = group
-    end
-
-    if double_colon_count == 0 and #groups ~= 8 then
-        return false
-    end
-    if #groups > 8 then
-        return false
-    end
-
-    for _, hextet in ipairs(groups) do
-        if #hextet > 4 then
-            return false
-        end
-        if #hextet > 0 and hextet:match("[^%x]") then
-            return false
-        end
-    end
-    return true
-end
-
-local function validate_domain(domain)
-    if domain:match("[^%w%.%-]") then
-        return false
-    end
-    if domain:sub(1, 1) == "-" or domain:sub(-1) == "-" then
-        return false
-    end
-    if domain:sub(1, 1) == "." or domain:sub(-1) == "." then
-        return false
-    end
-    if domain:find("..", 1, true) then
-        return false
-    end
-    return true
-end
-
-local function validate_port(port_str)
-    if port_str:match("[^%d]") then
-        return false
-    end
-    local n = tonumber(port_str)
-    if not n or n < 1 or n > 65535 then
-        return false
-    end
-    return true
-end
-
-local function validate_domain_ip(host)
-    if host:find(":", 1, true) then
-        return validate_ipv6(host)
-    end
-    if not host:match("[^%d%.]") then
-        return validate_ipv4(host)
-    end
-    return validate_domain(host)
-end
-
-local function validate_domain_port(val)
-    local host, port
-
-    if val:match("^%[.+%]:%d+$") then
-        host = val:match("^(%[.+%]):")
-        port = val:match(":(%d+)$")
-    elseif val:match("^%[.+%]$") then
-        host = val
-    elseif val:match("^[^:]+:[^:]+:[^:]*") then
-        host = val
-    elseif val:find(":", 1, true) then
-        host = val:match("^(.-):([^:]+)$")
-        port = val:match(":([^:]+)$")
-    else
-        host = val
-    end
-
-    if not validate_domain_ip(host) then
-        return false
-    end
-    if port and not validate_port(port) then
-        return false
-    end
-    return true
-end
-
 local url_option = main_section:option(
     Value,
     "url",
     translate("Matrix Homeserver URL"),
     translate(
-        "The Client-Server API URL. Do not use the base domain if your API is hosted on a subdomain.<br />Unsure? Check <code>https://matrix.org/.well-known/matrix/client</code> and use the <code>base_url</code>.<br />Note: Replace <code>matrix.org</code> with the domain from your <code>@user:your-matrix-domain.tld</code> ID.<br />Example: <code>https://matrix-client.matrix.org</code>"
+        "The Client-Server API URL. Do not use the base domain if your API is hosted on a subdomain.<br />"
+            .. "Unsure? Check <code>https://matrix.org/.well-known/matrix/client</code> "
+            .. "and use the <code>base_url</code>.<br />"
+            .. "Note: Replace <code>matrix.org</code> with the domain from your "
+            .. "<code>@user:your-matrix-domain.tld</code> ID.<br />"
+            .. "Example: <code>https://matrix-client.matrix.org</code>"
     )
 )
+
 url_option.size = 60
 url_option.rmempty = false
-function url_option.validate(_self, value, _section)
+function url_option.validate(self, value, _section)
     if not value or value == "" then
-        return nil, translate("Homeserver URL is required")
+        add_validation_error(
+            "Main Configuration",
+            self.title or "Matrix Homeserver URL",
+            value,
+            translate("Homeserver URL is required")
+        )
+        return nil
     end
 
-    local body
-    if value:match("^https?://") then
-        body = value:gsub("^https?://", "")
-    else
-        return nil, translate("URL must start with 'http://' or 'https://'")
-    end
-
-    body = body:gsub("/+$", "")
-    if body == "" then
-        return nil, translate("URL must contain a valid hostname")
-    end
-
-    if not validate_domain_port(body) then
-        return nil, translate("URL contains an invalid hostname or port")
+    if has_validator then
+        local ok, err = validator.validate_matrix_homeserver_url(value)
+        if not ok then
+            if err then
+                err = err:gsub("^FATAL: ", "")
+                err = err:gsub("^%l", string.upper)
+            end
+            add_validation_error(
+                "Main Configuration",
+                self.title or "Matrix Homeserver URL",
+                value,
+                err or translate("Invalid format")
+            )
+            return nil
+        end
     end
 
     return value
@@ -345,27 +213,68 @@ local bot_user_option = main_section:option(
 )
 bot_user_option.size = 60
 bot_user_option.rmempty = false
-function bot_user_option.validate(self, value, section)
+function bot_user_option.validate(self, value, _section)
     if not value or value == "" then
-        return nil, translate("Bot User ID is required")
+        add_validation_error(
+            "Main Configuration",
+            self.title or "Bot User ID",
+            value,
+            translate("Bot User ID is required")
+        )
+        return nil
     end
-    return validate_matrix_user_id(self, value, section)
+    if has_validator then
+        local ok, err = validator.validate_matrix_user(value, self.title or "Bot User ID")
+        if not ok then
+            if err then
+                local prefix = "FATAL: " .. (self.title or "Bot User ID") .. " "
+                err = err:gsub("^" .. prefix:gsub("%-", "%%-"), "")
+                err = err:gsub("^%l", string.upper)
+            end
+            add_validation_error(
+                "Main Configuration",
+                self.title or "Bot User ID",
+                value,
+                err or translate("Invalid format")
+            )
+            return nil
+        end
+    end
+    return value
 end
 
 local token_option = main_section:option(Value, "token", translate("Access Token"))
 token_option.password = true
 token_option.size = 60
 token_option.rmempty = false
-function token_option.validate(_self, value, _section)
+function token_option.validate(self, value, _section)
     if not value or value == "" then
-        return nil, translate("Access token is required")
+        add_validation_error(
+            "Main Configuration",
+            self.title or "Access Token",
+            value,
+            translate("Access token is required")
+        )
+        return nil
     end
-    if not value:match("^syt_") and not value:match("^mct_") then
-        return nil, translate("Token must start with 'syt_' or 'mct_'")
+
+    if has_validator then
+        local ok, err = validator.validate_token(value)
+        if not ok then
+            if err then
+                err = err:gsub("^FATAL: ", "")
+                err = err:gsub("^%l", string.upper)
+            end
+            add_validation_error(
+                "Main Configuration",
+                self.title or "Access Token",
+                value,
+                err or translate("Invalid format")
+            )
+            return nil
+        end
     end
-    if value:match("[^%w_]") then
-        return nil, translate("Token contains invalid characters")
-    end
+
     return value
 end
 
@@ -374,16 +283,41 @@ local admin_user_option = main_section:option(
     "admin_user",
     translate("Admin User ID"),
     translate(
-        "The Matrix ID of the administrator. Only this user is allowed to send commands.<br />Example: <code>@admin:your-matrix-domain.tld</code>"
+        "The Matrix ID of the administrator. Only this user is allowed to send commands.<br />"
+            .. "Example: <code>@admin:your-matrix-domain.tld</code>"
     )
 )
+
 admin_user_option.size = 60
 admin_user_option.rmempty = false
-function admin_user_option.validate(self, value, section)
+function admin_user_option.validate(self, value, _section)
     if not value or value == "" then
-        return nil, translate("Admin User ID is required")
+        add_validation_error(
+            "Main Configuration",
+            self.title or "Admin User ID",
+            value,
+            translate("Admin User ID is required")
+        )
+        return nil
     end
-    return validate_matrix_user_id(self, value, section)
+    if has_validator then
+        local ok, err = validator.validate_matrix_user(value, self.title or "Admin User ID")
+        if not ok then
+            if err then
+                local prefix = "FATAL: " .. (self.title or "Admin User ID") .. " "
+                err = err:gsub("^" .. prefix:gsub("%-", "%%-"), "")
+                err = err:gsub("^%l", string.upper)
+            end
+            add_validation_error(
+                "Main Configuration",
+                self.title or "Admin User ID",
+                value,
+                err or translate("Invalid format")
+            )
+            return nil
+        end
+    end
+    return value
 end
 
 local admin_room_option = main_section:option(
@@ -391,16 +325,41 @@ local admin_room_option = main_section:option(
     "admin_room",
     translate("Admin Alert Room"),
     translate(
-        "Room ID for security alerts.<br />Examples: <code>!roomid:your-matrix-domain.tld</code> or <code>!opaque-v12_roomid</code>"
+        "Room ID for security alerts.<br />"
+            .. "Examples: <code>!roomid:your-matrix-domain.tld</code> or <code>!opaque-v12_roomid</code>"
     )
 )
+
 admin_room_option.size = 60
 admin_room_option.rmempty = false
-function admin_room_option.validate(self, value, section)
+function admin_room_option.validate(self, value, _section)
     if not value or value == "" then
-        return nil, translate("Admin Alert Room is required")
+        add_validation_error(
+            "Main Configuration",
+            self.title or "Admin Alert Room",
+            value,
+            translate("Admin Alert Room is required")
+        )
+        return nil
     end
-    return validate_matrix_room_id(self, value, section)
+    if has_validator then
+        local ok, err = validator.validate_matrix_room(value, self.title or "Admin Alert Room")
+        if not ok then
+            if err then
+                local prefix = "FATAL: " .. (self.title or "Admin Alert Room") .. " "
+                err = err:gsub("^" .. prefix:gsub("%-", "%%-"), "")
+                err = err:gsub("^%l", string.upper)
+            end
+            add_validation_error(
+                "Main Configuration",
+                self.title or "Admin Alert Room",
+                value,
+                err or translate("Invalid format")
+            )
+            return nil
+        end
+    end
+    return value
 end
 
 local rooms_option = main_section:option(
@@ -408,22 +367,51 @@ local rooms_option = main_section:option(
     "rooms",
     translate("Command Rooms"),
     translate(
-        "Room IDs where the bot accepts commands.<br />Examples: <code>!roomid:your-matrix-domain.tld</code> or <code>!opaque-v12_roomid</code>"
+        "Room IDs where the bot accepts commands.<br />"
+            .. "Examples: <code>!roomid:your-matrix-domain.tld</code> or <code>!opaque-v12_roomid</code>"
     )
 )
+
 rooms_option.size = 60
 rooms_option.rmempty = false
-function rooms_option.validate(self, value, section)
-    if type(value) == "table" then
-        for _, entry in ipairs(value) do
-            local ok, err = validate_matrix_room_id(self, entry, section)
+function rooms_option.validate(self, value, _section)
+    local function validate_single_room(val)
+        if not val or val == "" then
+            return true
+        end
+        if has_validator then
+            local ok, err = validator.validate_matrix_room(val, self.title or "Command Rooms")
             if not ok then
-                return nil, err
+                if err then
+                    local prefix = "FATAL: " .. (self.title or "Command Rooms") .. " "
+                    err = err:gsub("^" .. prefix:gsub("%-", "%%-"), "")
+                    err = err:gsub("^%l", string.upper)
+                end
+                add_validation_error(
+                    "Main Configuration",
+                    self.title or "Command Rooms",
+                    val,
+                    err or translate("Invalid format")
+                )
+                return false
             end
         end
-        return value
+        return true
     end
-    return validate_matrix_room_id(self, value, section)
+
+    if type(value) == "table" then
+        local all_valid = true
+        for _, entry in ipairs(value) do
+            if not validate_single_room(entry) then
+                all_valid = false
+            end
+        end
+        return all_valid and value or nil
+    end
+    if not validate_single_room(value) then
+        return nil
+    end
+    return value
 end
 
 local debug_option = main_section:option(
@@ -471,12 +459,20 @@ ssh_port_option.rmempty = false
 
 local ssh_user_option = e2ee_section:option(Value, "ssh_user", translate("SSH User"))
 ssh_user_option.rmempty = true
-function ssh_user_option.validate(_self, value, _section)
+function ssh_user_option.validate(self, value, _section)
     if not value or value == "" then
         return value
     end
-    if value:match("[^%w%_%-%.%@]") then
-        return nil, translate("SSH user contains invalid characters")
+    if has_validator then
+        if not validator.validate_ssh_user(value, "ssh_user") then
+            add_validation_error(
+                "E2EE Settings",
+                self.title or "SSH User",
+                value,
+                "SSH user contains invalid characters."
+            )
+            return nil
+        end
     end
     return value
 end
@@ -485,24 +481,60 @@ local ssh_key_option = e2ee_section:option(Value, "ssh_key", translate("SSH Priv
 ssh_key_option.datatype = "string"
 ssh_key_option.default = "/root/.ssh/router-matrix"
 ssh_key_option.rmempty = true
+function ssh_key_option.validate(self, value, _section)
+    if not value or value == "" then
+        return value
+    end
+    if has_validator then
+        if not validator.validate_ssh_key_path(value, "ssh_key") then
+            add_validation_error(
+                "E2EE Settings",
+                self.title or "SSH Private Key Path",
+                value,
+                "Spaces and special characters are forbidden. Must be absolute and not a critical system directory."
+            )
+            return nil
+        end
+    end
+    return value
+end
 
 local data_dir_option = e2ee_section:option(
     Value,
     "data_dir",
-    translate("matrix-cli Data Directory"),
+    translate("Remote Data Directory"),
     translate(
-        "Optional path to the matrix-cli data directory on the remote host.<br />Example: <code>/home/bot/.config/matrix-cli</code>"
+        "Optional path to the matrix-cli data directory on the remote host.<br />"
+            .. "Example: <code>/home/bot/.config/matrix-cli</code>"
     )
 )
+
 data_dir_option.datatype = "string"
 data_dir_option.rmempty = true
+function data_dir_option.validate(self, value, _section)
+    if not value or value == "" then
+        return value
+    end
+    if has_validator then
+        if not validator.validate_path(value, "data_dir") then
+            add_validation_error(
+                "E2EE Settings",
+                self.title or "Remote Data Directory",
+                value,
+                "Spaces and special characters are forbidden. Must be absolute and not a critical system directory."
+            )
+            return nil
+        end
+    end
+    return value
+end
 
 local local_sep = e2ee_section:option(DummyValue, "_local_sep", translate("Local Binary Configuration:"))
 local_sep.rawhtml = true
 
 local local_bin_option = e2ee_section:option(DummyValue, "local_bin", translate("Local Binary"))
 local_bin_option.rawhtml = true
-local_bin_option.cfgvalue = function(self, section)
+local_bin_option.cfgvalue = function(_self, _section)
     local ok, installer = pcall(require, "matrixbot.utils.matrix_cli")
     local installed_ver = ok and installer.get_installed_version() or nil
     local is_supported, arch = false, "Unknown"
@@ -602,13 +634,32 @@ local local_data_dir_option = e2ee_section:option(
     translate(
         "Path to the local matrix-cli data directory.<br />"
             .. "<strong>CAUTION:</strong> Frequent SQLite database writes can cause premature flash memory wear.<br />"
-            .. "If your device does not use an extroot (extended overlay), it is highly recommended to mount a separate external storage device for this directory.<br />"
+            .. "It is highly recommended to use an extroot (extended overlay) setup.<br />"
+            .. "If unavailable, please mount a dedicated external storage device for this directory.<br />"
+            .. "Note: For security reasons, spaces and special characters are not allowed in the path.<br />"
             .. "Default path: <code>/etc/matrix-cli</code><br />"
             .. "Example: <code>/mnt/usb/matrix-cli</code>"
     )
 )
 local_data_dir_option.datatype = "string"
 local_data_dir_option.rmempty = false
+function local_data_dir_option.validate(self, value, _section)
+    if not value or value == "" then
+        return value
+    end
+    if has_validator then
+        if not validator.validate_path(value, "local_data_dir") then
+            add_validation_error(
+                "E2EE Settings",
+                self.title or "Local Data Directory",
+                value,
+                "Spaces and special characters are forbidden. Must be absolute and not a critical system directory."
+            )
+            return nil
+        end
+    end
+    return value
+end
 
 local features_section = map:section(NamedSection, "features", "matrixbot", translate("Features Configuration"))
 features_section.anonymous = true
@@ -621,17 +672,21 @@ local allowed_services_option = features_section:option(
     translate("Services that can be restarted via chat. Only alphanumeric, dash, underscore.")
 )
 allowed_services_option.rmempty = false
-function allowed_services_option.validate(_self, value, _section)
-    if type(value) == "table" then
-        for _, service_name in ipairs(value) do
-            if service_name:match("[^%w%_%-]") then
-                return nil, translate("Service name '") .. service_name .. translate("' contains invalid characters")
-            end
-        end
+function allowed_services_option.validate(self, value, _section)
+    if not value or value == "" then
         return value
     end
-    if value and value:match("[^%w%_%-]") then
-        return nil, translate("Service name contains invalid characters")
+    if has_validator then
+        local list = type(value) == "table" and value or { value }
+        if not validator.validate_service_list(list, "svc_wanted") then
+            add_validation_error(
+                "Features Configuration",
+                self.title or "Allowed Services",
+                value,
+                "Spaces and special chars are forbidden (only alphanumeric, dash, and underscore allowed)."
+            )
+            return nil
+        end
     end
     return value
 end
@@ -652,6 +707,24 @@ local wol_interfaces_option = features_section:option(
     translate("List of interfaces for WOL broadcasting (defaults to br-lan if empty).")
 )
 wol_interfaces_option.rmempty = true
+function wol_interfaces_option.validate(self, value, _section)
+    if not value or value == "" then
+        return value
+    end
+    if has_validator then
+        local list = type(value) == "table" and value or { value }
+        if not validator.validate_netdev_list(list, "wol_interfaces") then
+            add_validation_error(
+                "Features Configuration",
+                self.title or "WOL Interfaces",
+                value,
+                "Spaces and special chars are forbidden (only alphanumeric, dash, dot allowed). Max 15 chars limit."
+            )
+            return nil
+        end
+    end
+    return value
+end
 
 local wifi_detailed_option = features_section:option(Flag, "wifi_detailed", translate("Detailed WiFi Output"))
 wifi_detailed_option.rmempty = false

@@ -19,7 +19,9 @@ local matrix_cli = require("matrixbot.utils.matrix_cli")
 describe("matrix_cli module", function()
     before_each(function()
         nixio_mock.reset()
-        luci_sys_mock.exec = function(_cmd) return "" end
+        luci_sys_mock.exec = function(_cmd)
+            return ""
+        end
     end)
 
     it("should get arch correctly", function()
@@ -47,15 +49,23 @@ describe("matrix_cli module", function()
     end)
 
     it("should parse installed version correctly", function()
-        nixio_mock.fs.access = function(path) return path == "/usr/bin/matrix-cli" end
-        luci_sys_mock.exec = function(_cmd) return " v0.4.0 \n" end
+        nixio_mock.fs.access = function(path)
+            return path == "/usr/bin/matrix-cli"
+        end
+        luci_sys_mock.exec = function(_cmd)
+            return " v0.4.0 \n"
+        end
         local ver = matrix_cli.get_installed_version()
         assert.are.equal("v0.4.0", ver)
     end)
 
     it("should return Unknown if version string is empty", function()
-        nixio_mock.fs.access = function(path) return path == "/usr/bin/matrix-cli" end
-        luci_sys_mock.exec = function(_cmd) return "" end
+        nixio_mock.fs.access = function(path)
+            return path == "/usr/bin/matrix-cli"
+        end
+        luci_sys_mock.exec = function(_cmd)
+            return ""
+        end
         local ver = matrix_cli.get_installed_version()
         assert.are.equal("Unknown", ver)
     end)

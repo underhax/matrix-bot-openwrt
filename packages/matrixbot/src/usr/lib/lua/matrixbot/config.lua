@@ -86,7 +86,7 @@ function M.load()
 
     local invalid = false
 
-    if not validator.validate_url(cfg.main.url) then
+    if not validator.validate_matrix_homeserver_url(cfg.main.url) then
         invalid = true
     end
     if not validator.validate_token(cfg.main.token) then
@@ -120,10 +120,10 @@ function M.load()
     if not validator.validate_mac(cfg.features.mac_pc, "mac_pc") then
         invalid = true
     end
-    if not validator.validate_path_list(cfg.features.svc_wanted, "svc_wanted") then
+    if not validator.validate_service_list(cfg.features.svc_wanted, "svc_wanted") then
         invalid = true
     end
-    if not validator.validate_path_list(cfg.features.wol_interfaces, "wol_interfaces") then
+    if not validator.validate_netdev_list(cfg.features.wol_interfaces, "wol_interfaces") then
         invalid = true
     end
 
@@ -143,6 +143,9 @@ function M.load()
             elseif not validator.validate_secure_file(cfg.e2ee.ssh_key, "ssh_key") then
                 invalid = true
             end
+            if not validator.validate_path(cfg.e2ee.data_dir, "data_dir") then
+                invalid = true
+            end
             if
                 cfg.e2ee.ssh_host ~= ""
                 and not validator.validate_secure_file("/etc/matrix_bot_known_hosts", "/etc/matrix_bot_known_hosts")
@@ -152,6 +155,8 @@ function M.load()
         elseif cfg.e2ee.mode == "local" then
             if cfg.e2ee.local_data_dir == "" then
                 logger.error("FATAL: Configuration option 'local_data_dir' cannot be empty.")
+                invalid = true
+            elseif not validator.validate_path(cfg.e2ee.local_data_dir, "local_data_dir") then
                 invalid = true
             end
 

@@ -250,7 +250,7 @@ You can offload the heavy lifting to an external host via an SSH tunnel (**Remot
 > *(Replace `<CALLBACK_PORT>` with the actual port shown in your console, and adjust the SSH port, IP, and key path accordingly). Once the tunnel is active, you can open the link in your local browser.*
 
 > [!WARNING]
-> `matrix-cli` continuously updates its SQLite encryption database. You need to specify a path in the **Local Data Directory** field. To prevent flash storage wear, it is highly recommended to point this to a USB mount (e.g. `/mnt/usb/matrix-cli`), unless you are using extroot, in which case you can use a standard path like `/etc/matrix-cli`.
+> `matrix-cli` continuously updates its SQLite encryption database. You need to specify a path in the **Local Data Directory** field. To prevent flash storage wear, it is highly recommended to point this to a USB mount (e.g. `/mnt/usb/matrix-cli`), unless you are using extroot, in which case you can use a standard path like `/etc/matrix-cli`. *(Note: For security reasons, spaces and special characters are not allowed in the path).*
 
 ### Method B: HTTP (Simple)
 Communicates directly with the Matrix API. Best for unencrypted rooms or when you cannot maintain an external host.

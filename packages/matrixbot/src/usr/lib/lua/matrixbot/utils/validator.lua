@@ -142,50 +142,80 @@ function M.is_domain_port(val)
     return true
 end
 
-function M.validate_url(url)
+function M.validate_matrix_homeserver_url(url)
     if not url or url == "" then
-        logger.error("FATAL: URL is empty.")
-        return false
+        local err = "FATAL: URL is empty."
+        logger.error(err)
+        return false, err
     end
 
     local protocol, body = url:match("^(https?://)(.+)$")
     if not protocol or not body then
-        logger.error("FATAL: URL must start with 'http://' or 'https://'.")
-        return false
+        local err = "FATAL: URL must start with 'http://' or 'https://'."
+        logger.error(err)
+        return false, err
     end
 
     if not M.is_domain_port(body) then
-        logger.error("FATAL: URL domain/IP is invalid.")
-        return false
+        local err = "FATAL: URL domain/IP is invalid."
+        logger.error(err)
+        return false, err
     end
     return true
 end
 
 function M.validate_token(token)
     if not token or token == "" then
-        logger.error("FATAL: Access token is empty.")
-        return false
+        local err = "FATAL: Access token is empty."
+        logger.error(err)
+        return false, err
     end
     if not token:match("^syt_") and not token:match("^mct_") then
-        logger.error("FATAL: Access token must start with 'syt_' or 'mct_'.")
-        return false
+        local err = "FATAL: Access token must start with 'syt_' or 'mct_'."
+        logger.error(err)
+        return false, err
     end
     if token:match("[^%w_]") then
-        logger.error("FATAL: Access token contains invalid characters.")
-        return false
+        local err = "FATAL: Access token contains invalid characters."
+        logger.error(err)
+        return false, err
     end
     return true
 end
 
-local function validate_matrix_localpart(localpart, var_name)
+local function validate_user_localpart(localpart, var_name)
     if not localpart or localpart == "" then
-        logger.error(string.format("FATAL: %s has missing localpart or domain.", var_name))
-        return false
+        local err = string.format("FATAL: %s has missing localpart or domain.", var_name)
+        logger.error(err)
+        return false, err
     end
 
-    if localpart:match("[^%w%.%_%=/%-]") then
-        logger.error(string.format("FATAL: %s localpart contains invalid characters.", var_name))
-        return false
+    if localpart:match("[^a-z0-9._=/+%-]") then
+        local err = string.format("FATAL: %s localpart contains invalid characters.", var_name)
+        logger.error(err)
+        return false, err
+    end
+
+    if localpart:find("%.%.", 1, true) then
+        local err = string.format("FATAL: %s localpart cannot contain consecutive dots.", var_name)
+        logger.error(err)
+        return false, err
+    end
+
+    return true
+end
+
+local function validate_room_localpart(localpart, var_name)
+    if not localpart or localpart == "" then
+        local err = string.format("FATAL: %s has missing opaque_id.", var_name)
+        logger.error(err)
+        return false, err
+    end
+
+    if localpart:match("[^%w._=/+%-]") then
+        local err = string.format("FATAL: %s opaque_id contains invalid characters.", var_name)
+        logger.error(err)
+        return false, err
     end
 
     return true
@@ -193,29 +223,40 @@ end
 
 local function validate_matrix_user_id(val, var_name)
     if not val or val == "" then
-        logger.error(string.format("FATAL: %s is empty.", var_name))
-        return false
+        local err = string.format("FATAL: %s is empty.", var_name)
+        logger.error(err)
+        return false, err
+    end
+
+    if #val > 255 then
+        local err = string.format("FATAL: %s exceeds maximum length of 255 bytes.", var_name)
+        logger.error(err)
+        return false, err
     end
 
     if val:sub(1, 1) ~= "@" then
-        logger.error(string.format("FATAL: %s must start with '@'.", var_name))
-        return false
+        local err = string.format("FATAL: %s must start with '@'.", var_name)
+        logger.error(err)
+        return false, err
     end
 
     local body = val:sub(2)
     local localpart, serverpart = body:match("^([^:]+):(.+)$")
     if not localpart or not serverpart then
-        logger.error(string.format("FATAL: %s has missing localpart or domain.", var_name))
-        return false
+        local err = string.format("FATAL: %s has missing localpart or domain.", var_name)
+        logger.error(err)
+        return false, err
     end
 
-    if not validate_matrix_localpart(localpart, var_name) then
-        return false
+    local ok, err_msg = validate_user_localpart(localpart, var_name)
+    if not ok then
+        return false, err_msg
     end
 
     if not M.is_domain_port(serverpart) then
-        logger.error(string.format("FATAL: %s domain/IP is invalid.", var_name))
-        return false
+        local err = string.format("FATAL: %s domain/IP is invalid.", var_name)
+        logger.error(err)
+        return false, err
     end
 
     return true
@@ -223,13 +264,21 @@ end
 
 local function validate_matrix_room_id(val, var_name)
     if not val or val == "" then
-        logger.error(string.format("FATAL: %s is empty.", var_name))
-        return false
+        local err = string.format("FATAL: %s is empty.", var_name)
+        logger.error(err)
+        return false, err
+    end
+
+    if #val > 255 then
+        local err = string.format("FATAL: %s exceeds maximum length of 255 bytes.", var_name)
+        logger.error(err)
+        return false, err
     end
 
     if val:sub(1, 1) ~= "!" then
-        logger.error(string.format("FATAL: %s must start with '!'.", var_name))
-        return false
+        local err = string.format("FATAL: %s must start with '!'.", var_name)
+        logger.error(err)
+        return false, err
     end
 
     local body = val:sub(2)
@@ -239,20 +288,23 @@ local function validate_matrix_room_id(val, var_name)
     if body:find(":", 1, true) then
         local matched_localpart, matched_serverpart = body:match("^([^:]+):(.+)$")
         if not matched_localpart or not matched_serverpart then
-            logger.error(string.format("FATAL: %s has missing localpart or domain.", var_name))
-            return false
+            local err = string.format("FATAL: %s has missing localpart or domain.", var_name)
+            logger.error(err)
+            return false, err
         end
         localpart = matched_localpart
         serverpart = matched_serverpart
     end
 
-    if not validate_matrix_localpart(localpart, var_name) then
-        return false
+    local ok, err_msg = validate_room_localpart(localpart, var_name)
+    if not ok then
+        return false, err_msg
     end
 
     if serverpart and not M.is_domain_port(serverpart) then
-        logger.error(string.format("FATAL: %s domain/IP is invalid.", var_name))
-        return false
+        local err = string.format("FATAL: %s domain/IP is invalid.", var_name)
+        logger.error(err)
+        return false, err
     end
 
     return true
@@ -420,13 +472,98 @@ function M.validate_secure_dir(path, expected_uid, var_name)
     return true
 end
 
-function M.validate_path_list(list, var_name)
+local CRITICAL_DIRS = {
+    ["/"] = true,
+    ["/bin"] = true,
+    ["/dev"] = true,
+    ["/etc"] = true,
+    ["/lib"] = true,
+    ["/mnt"] = true,
+    ["/overlay"] = true,
+    ["/proc"] = true,
+    ["/rom"] = true,
+    ["/root"] = true,
+    ["/run"] = true,
+    ["/sbin"] = true,
+    ["/sys"] = true,
+    ["/tmp"] = true,
+    ["/usr"] = true,
+    ["/var"] = true,
+    ["/www"] = true,
+}
+
+function M.validate_path(path, var_name)
+    if not path or path == "" then
+        return true
+    end
+    if path:match("[^%w%_%-%./]") then
+        logger.error(string.format("FATAL: %s contains invalid characters.", var_name))
+        return false
+    end
+    if path:match("%.%.") then
+        logger.error(string.format("FATAL: %s contains directory traversal '..'.", var_name))
+        return false
+    end
+    if path:match("^%-") then
+        logger.error(string.format("FATAL: %s cannot start with a hyphen (option injection prevention).", var_name))
+        return false
+    end
+    if path:sub(1, 1) ~= "/" then
+        logger.error(string.format("FATAL: %s must be an absolute path.", var_name))
+        return false
+    end
+
+    local check_path = path:gsub("/+$", "")
+    if check_path == "" then
+        check_path = "/"
+    end
+
+    if CRITICAL_DIRS[check_path] then
+        logger.error(string.format("FATAL: %s cannot be a critical system directory ('%s').", var_name, check_path))
+        return false
+    end
+
+    return true
+end
+
+function M.validate_service_list(list, var_name)
     if not list or type(list) ~= "table" then
         return true
     end
     for _, item in ipairs(list) do
-        if item:match("[^%w%_%-%./]") then
-            logger.error(string.format("FATAL: %s contains invalid characters.", var_name))
+        if not item:match("^[%w%_%-]+$") then
+            logger.error(
+                string.format("FATAL: %s contains invalid characters (only alphanumeric, _, - allowed).", var_name)
+            )
+            return false
+        end
+        if item:match("^%-") then
+            logger.error(string.format("FATAL: %s cannot start with a hyphen.", var_name))
+            return false
+        end
+    end
+    return true
+end
+
+function M.validate_netdev_list(list, var_name)
+    if not list or type(list) ~= "table" then
+        return true
+    end
+    for _, item in ipairs(list) do
+        if #item > 15 then
+            logger.error(
+                string.format("FATAL: %s network device name '%s' exceeds Linux 15 characters limit.", var_name, item)
+            )
+            return false
+        end
+        if not item:match("^[%w%_%-%.]+$") then
+            logger.error(
+                string.format("FATAL: %s contains invalid characters (only alphanumeric, _, -, . allowed).", var_name)
+            )
+            return false
+        end
+        if item:match("^%-") then
+            logger.error(string.format("FATAL: %s cannot start with a hyphen.", var_name))
             return false
         end
     end
