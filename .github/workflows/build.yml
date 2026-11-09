@@ -70,7 +70,7 @@ jobs:
         run: |
           mkdir -p new_apks
           find release_assets -type f -name "*.apk" -exec cp {} new_apks/ \;
-          
+
           docker run --rm -v ${{ github.workspace }}:/workspace \
             -e APK_PRIVATE_KEY="${{ secrets.APK_PRIVATE_KEY }}" \
             alpine:edge sh -c '
@@ -87,7 +87,7 @@ jobs:
             cp gh-pages-branch/packages/*.apk to_sign/ || true
           fi
           cp new_apks/*.apk to_sign/
-          
+
           cd to_sign
           ls matrixbot-*.apk 2>/dev/null | sort -rV | tail -n +51 | xargs -r rm -f || true
           ls luci-app-matrixbot-*.apk 2>/dev/null | sort -rV | tail -n +51 | xargs -r rm -f || true
@@ -132,7 +132,7 @@ jobs:
           path: release_assets
 
       - name: Publish Release
-        uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
+        uses: softprops/action-gh-release@8a0cd651e5b2365bd640854a3fa5dfc70e4875f3 # v3.0.4
         with:
           generate_release_notes: true
           prerelease: ${{ contains(github.ref_name, '-') }}
