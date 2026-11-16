@@ -12,6 +12,7 @@ function conn:call(object, method, msg) end
 function conn:reply(req, msg) end
 ---@param objects table
 function conn:add(objects) end
+function conn:close() end
 
 ---@class ubus
 local ubus = {}

@@ -60,8 +60,18 @@ nixio.O_RDWR = 2
 nixio.O_WRONLY = 1
 nixio.O_RDONLY = 0
 
+---@class nixio_stat
+---@field mtime number?
+---@field uid number?
+---@field modedec number?
+---@field type string?
+
 ---@class nixio_fs
 nixio.fs = {}
+
+---@param path string
+---@return nixio_stat|nil
+function nixio.fs.stat(path) end
 
 ---@param path string
 ---@return function|nil iterator

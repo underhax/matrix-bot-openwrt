@@ -1,4 +1,5 @@
 local assert = require("luassert")
+local stub = require("luassert.stub")
 
 local luci_sys_mock = {
     exec = function(_cmd)
@@ -68,5 +69,54 @@ describe("matrix_cli module", function()
         end
         local ver = matrix_cli.get_installed_version()
         assert.are.equal("Unknown", ver)
+    end)
+
+    describe("update", function()
+        local exec_stub
+        local old_uci
+        local old_readfile
+        local exec_calls
+        local exec_exit_code
+
+        before_each(function()
+            old_uci = package.loaded["uci"]
+            old_readfile = nixio_mock.fs.readfile
+            exec_calls = {}
+            exec_exit_code = 0
+
+            package.loaded["uci"] = require("tests.mocks.uci") -- luacheck: ignore 122
+            exec_stub = stub(os, "execute", function(cmd)
+                table.insert(exec_calls, cmd)
+                return exec_exit_code
+            end)
+        end)
+
+        after_each(function()
+            exec_stub:revert()
+            package.loaded["uci"] = old_uci -- luacheck: ignore 122
+            nixio_mock.fs.readfile = old_readfile
+        end)
+
+        it("applies ownership and permissions after successful update", function()
+            exec_exit_code = 0
+
+            local ok = matrix_cli.update()
+            assert.is_true(ok)
+            assert.are.equal("/usr/bin/matrix-cli update > /tmp/matrixbot_updater.log 2>&1", exec_calls[1])
+            assert.are.equal("chown matrix-cli:matrix-cli /usr/bin/matrix-cli", exec_calls[2])
+            assert.are.equal("chmod 500 /usr/bin/matrix-cli", exec_calls[3])
+        end)
+
+        it("returns error and skips permission changes when update fails", function()
+            exec_exit_code = 1
+            nixio_mock.fs.readfile = function()
+                return "network timeout"
+            end
+
+            local ok, err = matrix_cli.update()
+            assert.is_false(ok)
+            assert.are.equal("Update failed: network timeout", err)
+            assert.are.equal(1, #exec_calls)
+        end)
     end)
 end)

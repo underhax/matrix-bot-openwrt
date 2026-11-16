@@ -170,12 +170,7 @@ function M.validate_token(token)
         logger.error(err)
         return false, err
     end
-    if not token:match("^syt_") and not token:match("^mct_") then
-        local err = "FATAL: Access token must start with 'syt_' or 'mct_'."
-        logger.error(err)
-        return false, err
-    end
-    if token:match("[^%w_]") then
+    if token:match("[^%w_%-%.]") then
         local err = "FATAL: Access token contains invalid characters."
         logger.error(err)
         return false, err

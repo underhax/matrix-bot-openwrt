@@ -218,6 +218,20 @@ function M.get_latest_version()
     return data_or_err.tag_name
 end
 
+local function apply_binary_permissions()
+    local uci = require("uci")
+    local cursor = uci.cursor()
+    local run_user = cursor:get("matrixbot", "e2ee", "run_user") or "matrix-cli"
+    local run_group = cursor:get("matrixbot", "e2ee", "run_group") or run_user
+    local data_dir = cursor:get("matrixbot", "e2ee", "local_data_dir") or "/etc/matrix-cli"
+
+    local user_ok = M.ensure_run_user(run_user, data_dir)
+    if user_ok then
+        os.execute(string.format("chown %s:%s /usr/bin/matrix-cli", run_user, run_group))
+    end
+    os.execute("chmod 500 /usr/bin/matrix-cli")
+end
+
 function M.install()
     local https = require("ssl.https")
     local ltn12 = require("ltn12")
@@ -318,17 +332,7 @@ function M.install()
     end
 
     os.execute("mv /tmp/matrix-cli /usr/bin/matrix-cli")
-
-    local uci = require("uci")
-    local cursor = uci.cursor()
-    local run_user = cursor:get("matrixbot", "e2ee", "run_user") or "matrix-cli"
-    local data_dir = cursor:get("matrixbot", "e2ee", "local_data_dir") or "/etc/matrix-cli"
-
-    local user_ok = M.ensure_run_user(run_user, data_dir)
-    if user_ok then
-        os.execute(string.format("chown %s:%s /usr/bin/matrix-cli", run_user, run_user))
-    end
-    os.execute("chmod 500 /usr/bin/matrix-cli")
+    apply_binary_permissions()
     os.remove(archive_path)
 
     return true, "Successfully installed " .. (data.tag_name or "latest")
@@ -342,6 +346,7 @@ function M.update()
         local err = fs.readfile(log_file) or "Unknown error"
         return false, "Update failed: " .. err
     end
+    apply_binary_permissions()
     return true
 end
 

@@ -57,8 +57,13 @@ if action then
             require("nixio.fs").writefile("/tmp/matrixbot_ui_error", tostring(err))
         end
     elseif action == "update_cli" then
+        local was_running = require("matrixbot.utils.state").get_status().running
         local ok, err = require("matrixbot.utils.matrix_cli").update()
-        if not ok then
+        if ok then
+            if was_running then
+                sys.call("/etc/init.d/matrixbot restart >/dev/null 2>&1")
+            end
+        else
             require("nixio.fs").writefile("/tmp/matrixbot_ui_error", tostring(err))
         end
     end
@@ -85,72 +90,190 @@ end
 local status = control_section:option(DummyValue, "_status", translate("Service Status"))
 status.rawhtml = true
 status.cfgvalue = function(_self, _section)
-    local running = (sys.call("/etc/init.d/matrixbot running >/dev/null 2>&1") == 0)
-    local enabled = (sys.call("/etc/init.d/matrixbot enabled >/dev/null 2>&1") == 0)
+    local state = require("matrixbot.utils.state")
+    local st = state.get_status()
 
     local stat_str
-    if running then
-        local fs = require("nixio.fs")
-        local stat = fs.stat("/var/run/matrixbot_poller.pid")
-        local backoff_stat = fs.stat("/tmp/matrixbot_backoff")
-
-        if backoff_stat then
-            local backoff_sec = fs.readfile("/tmp/matrixbot_backoff") or "?"
-            stat_str = '<span style="color:orange;font-weight:bold">'
-                .. translate("Connection Lost. Backoff: ")
-                .. backoff_sec
-                .. translate("s")
-                .. "</span>"
-        elseif stat and stat.mtime then
-            local diff = os.time() - stat.mtime
-            local m = math.floor(diff / 60)
-            local h = math.floor(m / 60)
-            local d = math.floor(h / 24)
-            m = m % 60
-            h = h % 24
-            local uptime_str
-            if d > 0 then
-                uptime_str = string.format(" (Uptime: %dd %dh %dm)", d, h, m)
-            elseif h > 0 then
-                uptime_str = string.format(" (Uptime: %dh %dm)", h, m)
-            else
-                uptime_str = string.format(" (Uptime: %dm)", m)
-            end
-            stat_str = '<span style="color:green;font-weight:bold">' .. translate("Running") .. uptime_str .. "</span>"
-        else
-            stat_str = '<span style="color:orange;font-weight:bold">' .. translate("Starting...") .. "</span>"
-        end
+    if st.state == "backoff" then
+        stat_str = '<span id="matrixbot-status-text" style="color:orange;font-weight:bold">'
+            .. translate("Connection Lost. Backoff: ")
+            .. tostring(st.backoff_sec or "?")
+            .. translate("s")
+            .. "</span>"
+    elseif st.state == "running" then
+        stat_str = '<span id="matrixbot-status-text" style="color:green;font-weight:bold">'
+            .. translate("Running")
+            .. state.format_uptime(st.uptime_sec or 0)
+            .. "</span>"
+    elseif st.state == "starting" then
+        stat_str = '<span id="matrixbot-status-text" style="color:orange;font-weight:bold">'
+            .. translate("Starting...")
+            .. "</span>"
     else
-        stat_str = '<span style="color:red;font-weight:bold">' .. translate("Stopped") .. "</span>"
+        stat_str = '<span id="matrixbot-status-text" style="color:red;font-weight:bold">'
+            .. translate("Stopped")
+            .. "</span>"
     end
-    local en_str = enabled and translate("Enabled") or translate("Disabled")
+    local en_str = st.enabled and translate("Enabled") or translate("Disabled")
 
-    return string.format("%s (%s)", stat_str, en_str)
+    return string.format(
+        '<span id="matrixbot-status-box" data-state="%s">%s (<span id="matrixbot-enabled-text">%s</span>)</span>',
+        st.state,
+        stat_str,
+        en_str
+    )
 end
 
 local control = control_section:option(DummyValue, "_control", translate("Service Control"))
 control.rawhtml = true
 control.cfgvalue = function(_self, _section)
-    local running = (sys.call("/etc/init.d/matrixbot running >/dev/null 2>&1") == 0)
-    local enabled = (sys.call("/etc/init.d/matrixbot enabled >/dev/null 2>&1") == 0)
+    local st = require("matrixbot.utils.state").get_status()
+    local running = st.running
+    local enabled = st.enabled
 
     local d_start = running and " disabled" or ""
     local d_stop = running and "" or " disabled"
     local d_en = enabled and " disabled" or ""
     local d_dis = enabled and "" or " disabled"
 
-    return [[
-        <button class="btn cbi-button cbi-button-apply" type="submit" name="cbid.matrixbot.main._action" ]]
-        .. [[value="start"]] .. d_start .. [[>]] .. translate("Start") .. [[</button>
-        <button class="btn cbi-button cbi-button-apply" type="submit" name="cbid.matrixbot.main._action" ]]
-        .. [[value="restart"]] .. d_stop .. [[>]] .. translate("Restart") .. [[</button>
-        <button class="btn cbi-button cbi-button-remove" type="submit" name="cbid.matrixbot.main._action" ]]
-        .. [[value="stop"]] .. d_stop .. [[>]] .. translate("Stop") .. [[</button>
-        <span style="margin: 0 10px;"></span>
-        <button class="btn cbi-button cbi-button-apply" type="submit" name="cbid.matrixbot.main._action" ]]
-        .. [[value="enable"]] .. d_en .. [[>]] .. translate("Enable") .. [[</button>
-        <button class="btn cbi-button cbi-button-remove" type="submit" name="cbid.matrixbot.main._action" ]]
-        .. [[value="disable"]] .. d_dis .. [[>]] .. translate("Disable") .. [[</button>
+    local cjson = require("cjson")
+    local dispatcher = require("luci.dispatcher")
+    local status_url = dispatcher.build_url("admin", "services", "matrixbot", "status")
+    local labels_json = cjson
+        .encode({
+            running = translate("Running"),
+            starting = translate("Starting..."),
+            stopped = translate("Stopped"),
+            backoff = translate("Connection Lost. Backoff: "),
+            sec = translate("s"),
+            enabled = translate("Enabled"),
+            disabled = translate("Disabled"),
+        })
+        :gsub("<", "\\u003c")
+    local status_url_json = cjson.encode(status_url):gsub("<", "\\u003c")
+
+    local function control_button(btn_class, val, disabled_attr, label)
+        return string.format(
+            '<button class="btn cbi-button %s" type="submit" '
+                .. 'name="cbid.matrixbot.main._action" value="%s"%s>%s</button>',
+            btn_class,
+            val,
+            disabled_attr,
+            label
+        )
+    end
+
+    local buttons_html = table.concat({
+        control_button("cbi-button-apply", "start", d_start, translate("Start")),
+        control_button("cbi-button-apply", "restart", d_stop, translate("Restart")),
+        control_button("cbi-button-remove", "stop", d_stop, translate("Stop")),
+        '<span style="margin: 0 10px;"></span>',
+        control_button("cbi-button-apply", "enable", d_en, translate("Enable")),
+        control_button("cbi-button-remove", "disable", d_dis, translate("Disable")),
+    }, "\n")
+
+    return buttons_html
+        .. [[
+        <script>
+        (function() {
+            var box = document.getElementById('matrixbot-status-box');
+            if (!box || box.getAttribute('data-state') !== 'starting') {
+                return;
+            }
+            var statusText = document.getElementById('matrixbot-status-text');
+            var enabledText = document.getElementById('matrixbot-enabled-text');
+            var statusUrl = ]]
+        .. status_url_json
+        .. [[;
+            var labels = ]]
+        .. labels_json
+        .. [[;
+            var attempts = 0;
+            var maxAttempts = 30;
+            var pollIntervalMs = 2000;
+
+            function updateButtons(isRunning, isEnabled) {
+                var buttons = document.querySelectorAll('button[name="cbid.matrixbot.main._action"]');
+                for (var i = 0; i < buttons.length; i++) {
+                    var btn = buttons[i];
+                    var val = btn.value;
+                    if (val === 'start') {
+                        btn.disabled = !!isRunning;
+                    } else if (val === 'restart' || val === 'stop') {
+                        btn.disabled = !isRunning;
+                    } else if (val === 'enable') {
+                        btn.disabled = !!isEnabled;
+                    } else if (val === 'disable') {
+                        btn.disabled = !isEnabled;
+                    }
+                }
+            }
+
+            function applyStatus(data) {
+                if (!data || !data.state) {
+                    return false;
+                }
+                box.setAttribute('data-state', data.state);
+                updateButtons(data.running, data.enabled);
+                if (enabledText) {
+                    enabledText.textContent = data.enabled ? labels.enabled : labels.disabled;
+                }
+                if (statusText) {
+                    if (data.state === 'running') {
+                        statusText.style.color = 'green';
+                        statusText.textContent = labels.running + (data.uptime_text || '');
+                    } else if (data.state === 'backoff') {
+                        statusText.style.color = 'orange';
+                        var sec = data.backoff_sec !== undefined && data.backoff_sec !== null
+                            ? String(data.backoff_sec)
+                            : '?';
+                        statusText.textContent = labels.backoff + sec + labels.sec;
+                    } else if (data.state === 'starting') {
+                        statusText.style.color = 'orange';
+                        statusText.textContent = labels.starting;
+                    } else {
+                        statusText.style.color = 'red';
+                        statusText.textContent = labels.stopped;
+                    }
+                }
+                return data.state !== 'starting';
+            }
+
+            function poll() {
+                attempts += 1;
+                fetch(statusUrl, { credentials: 'same-origin', cache: 'no-store' })
+                    .then(function(res) {
+                        if (res.status === 401 || res.status === 403) {
+                            return null;
+                        }
+                        if (!res.ok) {
+                            throw new Error('HTTP ' + res.status);
+                        }
+                        var ct = res.headers.get('content-type') || '';
+                        if (ct.indexOf('application/json') === -1) {
+                            return null;
+                        }
+                        return res.json();
+                    })
+                    .then(function(data) {
+                        if (data === null) {
+                            return;
+                        }
+                        var done = applyStatus(data);
+                        if (!done && attempts < maxAttempts) {
+                            setTimeout(poll, pollIntervalMs);
+                        }
+                    })
+                    .catch(function() {
+                        if (attempts < maxAttempts) {
+                            setTimeout(poll, pollIntervalMs);
+                        }
+                    });
+            }
+
+            setTimeout(poll, pollIntervalMs);
+        })();
+        </script>
     ]]
 end
 
